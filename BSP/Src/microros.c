@@ -215,7 +215,7 @@ uint8_t microros_init_kernel(void)
     /*              node init              */
     /***************************************/
     // create node
-    ret = rclc_node_init_default(&node, "mecanum_microros_node", "", &support);
+    ret = rclc_node_init_default(&node, "nav_mecanum_driver", "", &support);
     if(ret == RCL_RET_OK)
     {
         printf("[INFO] init node OK!\r\n");

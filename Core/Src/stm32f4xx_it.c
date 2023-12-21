@@ -89,7 +89,7 @@ void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
 	Set_RGBLED(RED_OFF,GREEN_OFF,BLUE_ON);
-	HAL_NVIC_SystemReset();
+	// HAL_NVIC_SystemReset();
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
   {
