@@ -1,0 +1,3 @@
+[submodule "Core/cRingbuf"]
+	path = Core/cRingbuf
+	url = https://github.com/Pansamic/cRingbuf
