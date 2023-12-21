@@ -28,7 +28,8 @@ And then gcc-arm-none-eabi is installed to your environment.
 
 ```bash
 git clone https://github.com/Pansamic/nav_mecanum_driver
-mkdir build && cd build 
+git submodule init && git submodule update
+mkdir build && cd build
 # `cmake ..` is set default to debug build type which is -Og -g3 -ggdb optimization.
 cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j
