@@ -44,7 +44,7 @@ For convenience, take OpenOCD and tool with ST-Link for example.
 ```bash
 sudo apt update && sudo apt install -y openocd
 cd nav_mecanum_driver/build
-openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program nav_mecanum_driver verify reset exit"
+openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program nav_mecanum_driver.elf verify reset exit"
 ```
 
 ## Debug
