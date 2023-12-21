@@ -49,6 +49,4 @@ openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program nav_mecanum_d
 
 ## Debug
 
-Use VSCode and Cortex-Debug extension to debug.
-
-First you need to install 
+Use VSCode and Cortex-Debug extension to debug. 
