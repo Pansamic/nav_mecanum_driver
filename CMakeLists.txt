@@ -37,53 +37,54 @@ set (PROJECT_NAME             "nav_mecanum_driver")
 set (PROJECT_TYPE             "exe")
 set (LINKER_SCRIPT            "../STM32F407ZGTX_FLASH.ld")
 set (MCPU                     ${MCPU_CORTEX_M4})
-set (MFPU                     ${MFPU_FPV5_D16})
+set (MFPU                     ${MFPU_FPV4_SP_D16})
 set (MFLOAT_ABI               ${MFLOAT_ABI_HARDWARE})
 set (RUNTIME_LIBRARY          ${RUNTIME_LIBRARY_REDUCED_C})
 set (RUNTIME_LIBRARY_SYSCALLS ${RUNTIME_LIBRARY_SYSCALLS_MINIMAL})
-set (CMAKE_BUILD_TYPE         Debug)
+
 
 file (GLOB PROJECT_SOURCES
-	BSP/Src/*.c
+    BSP/Src/*.c
 	Core/Src/*.c
-	Core/cRingbuf/cRingbuf.c
-	Core/Startup/startup_stm32f407zgtx.s
+	Core/Startup/*.s
 	Drivers/STM32F4xx_HAL_Driver/Src/*.c
-	micro_ros_stm32cubemx_utils/extra_sources/microros_transports/usb_cdc_transport.c
-	micro_ros_stm32cubemx_utils/extra_sources/*.c
+	Middlewares/Third_Party/cRingbuf/cRingbuf.c
 	Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
 	Middlewares/ST/STM32_USB_Device_Library/Core/Src/*.c
 	Middlewares/Third_Party/FreeRTOS/Source/*.c
 	Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c
 	Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c
 	Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.c
+	Middlewares/Third_Party/Micro-XRCE-DDS-ROS2-Msg/builtin_interfaces/msg/*.c
+	Middlewares/Third_Party/Micro-XRCE-DDS-ROS2-Msg/std_msgs/msg/*.c
+	Middlewares/Third_Party/Micro-XRCE-DDS-ROS2-Msg/sensor_msgs/msg/*.c
+	Middlewares/Third_Party/Micro-XRCE-DDS-ROS2-Msg/control_msgs/msg/*.c
+	Middlewares/Third_Party/Micro-XRCE-DDS-ROS2-Msg/geometry_msgs/msg/*.c
 	USB_DEVICE/App/*.c
 	USB_DEVICE/Target/usbd_conf.c
-
 	)
 
 set (PROJECT_DEFINES
 	# LIST COMPILER DEFINITIONS HERE
 	STM32F407xx
 	USE_HAL_DRIVER
-	ARM_MATH_CM4
+	__rtems__
     )
 
 set (PROJECT_INCLUDES
 	# LIST INCLUDE DIRECTORIES HERE
 	BSP/Inc
 	Core/Inc
-	Core/cRingbuf
 	Drivers/CMSIS/Include
-	Drivers/CMSIS/DSP/Include
 	Drivers/CMSIS/Device/ST/STM32F4xx/Include
 	Drivers/STM32F4xx_HAL_Driver/Inc
-	micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include
 	Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc
 	Middlewares/ST/STM32_USB_Device_Library/Core/Inc
 	Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS
 	Middlewares/Third_Party/FreeRTOS/Source/include
 	Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F
+	Middlewares/Third_Party/cRingbuf
+	Middlewares/Third_Party/Micro-XRCE-DDS-ROS2-Msg
 	USB_DEVICE/App
 	USB_DEVICE/Target
     )
@@ -91,24 +92,62 @@ set (PROJECT_INCLUDES
 ############ MODIFY ACCORDING TO REQUIREMENTS) ########################
 
 #######################################################################
-set(CMAKE_TOOLCHAIN_FILE cubeide-gcc.cmake)
+set(CMAKE_TOOLCHAIN_FILE toolchains/gcc-arm-none-eabi.cmake)
 ################## PROJECT SETUP ######################################
-project(${PROJECT_NAME} C ASM)
+project(${PROJECT_NAME})
+enable_language(ASM)
 
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
-add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${CMAKE_PROJECT_NAME}>)
-
-add_compile_definitions (${PROJECT_DEFINES})
-include_directories (${PROJECT_INCLUDES})
-target_link_libraries(${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS/Lib/GCC/libarm_cortexM4lf_math.a)
-target_link_libraries(${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/libmicroros.a)
 
 set (CMAKE_EXECUTABLE_SUFFIX ".elf")
 set (CMAKE_STATIC_LIBRARY_SUFFIX ".a")
-if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
-set (CMAKE_C_FLAGS "${MCPU} -std=gnu11 ${MFPU} ${MFLOAT_ABI} ${RUNTIME_LIBRARY} -mthumb -Wall -Og -g3 -ggdb -ffunction-sections -fdata-sections -fstack-usage")
-elseif(${CMAKE_BUILD_TYPE} STREQUAL Release)
-set (CMAKE_C_FLAGS "${MCPU} -std=gnu11 ${MFPU} ${MFLOAT_ABI} ${RUNTIME_LIBRARY} -mthumb -Wall -Ofast -ffunction-sections -fdata-sections -fstack-usage")
-endif()
-set (CMAKE_EXE_LINKER_FLAGS "-T${LINKER_SCRIPT} ${RUNTIME_LIBRARY_SYSCALLS} -Wl,-Map=${PROJECT_NAME}.map -Wl,--gc-sections")
+set (CMAKE_C_FLAGS "${MCPU} -std=gnu11 ${MFPU} ${MFLOAT_ABI} ${RUNTIME_LIBRARY} -mthumb -Wall -Og -g3 -ggdb" CACHE INTERNAL "" FORCE)
+set (CMAKE_EXE_LINKER_FLAGS "-T${LINKER_SCRIPT} ${RUNTIME_LIBRARY_SYSCALLS} -Wl,-Map=${PROJECT_NAME}.map -Wl,--gc-sections -static -Wl,--start-group -Wl,--end-group")
 set (CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -x assembler-with-cpp")
+
+include(ExternalProject)
+
+# Set the URL of the Git repository
+set(UXRCE_URL "https://github.com/eProsima/Micro-XRCE-DDS-Client.git")
+
+# Set the destination directory for the cloned repository
+set(EXTERNAL_REPO_DIR "${CMAKE_BINARY_DIR}/external")
+
+# Set CMake configuration parameters
+set(UXRCE_CMAKE_ARGS
+    -DCMAKE_BUILD_TYPE=Debug
+	-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
+    -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
+	-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+	-DUCLIENT_PIC=OFF
+	-DUCLIENT_PROFILE_DISCOVERY=OFF
+	-DUCLIENT_PROFILE_UDP=OFF
+	-DUCLIENT_PROFILE_TCP=OFF
+	-DUCLIENT_PROFILE_SERIAL=OFF
+    # Add more configuration parameters as needed
+)
+
+# Use ExternalProject_Add to clone the repository and configure the project
+ExternalProject_Add(
+    micro-xrce-dds-client
+    PREFIX ${EXTERNAL_REPO_DIR}
+    GIT_REPOSITORY ${UXRCE_URL}
+    TIMEOUT 1000
+    CMAKE_ARGS ${UXRCE_CMAKE_ARGS}
+)
+
+# Specify the target to depend on the external project
+add_dependencies(${PROJECT_NAME} micro-xrce-dds-client)
+
+target_link_libraries(${PROJECT_NAME}
+	${CMAKE_BINARY_DIR}/install/lib/libmicroxrcedds_client.a
+	${CMAKE_BINARY_DIR}/install/lib/libmicrocdr.a)
+target_include_directories(${PROJECT_NAME} PUBLIC
+	${CMAKE_BINARY_DIR}/install/include
+)
+
+add_compile_definitions(${PROJECT_DEFINES})
+include_directories(${PROJECT_INCLUDES})
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${PROJECT_NAME}>)
+
