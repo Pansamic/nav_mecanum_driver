@@ -1,15 +1,3 @@
-#############################################################################################################################
-# file:  CMakeLists.txt
-# brief: Template "CMakeLists.txt" for building of executables and static libraries.
-#
-# usage: Edit "VARIABLES"-section to suit project requirements.
-#        For debug build:
-#          cmake -DCMAKE_TOOLCHAIN_FILE=cubeide-gcc.cmake  -S ./ -B Debug -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug
-#          make -C Debug VERBOSE=1
-#        For release build:
-#          cmake -DCMAKE_TOOLCHAIN_FILE=cubeide-gcc.cmake  -S ./ -B Release -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
-#          make -C Release VERBOSE=1
-#############################################################################################################################
 cmake_minimum_required(VERSION 3.20)
 
 ###################### CONSTANTS ######################################
@@ -138,7 +126,7 @@ set(UXRCE_CMAKE_ARGS
 # Use ExternalProject_Add to clone the repository and configure the project
 ExternalProject_Add(
     uxr_client
-    PREFIX Middlewares/Third_Party/Micro-XRCE-DDS-Client
+    PREFIX ${EXTERNAL_REPO_DIR}
     GIT_REPOSITORY ${UXRCE_URL}
     TIMEOUT 1000
     CMAKE_ARGS ${UXRCE_CMAKE_ARGS}
