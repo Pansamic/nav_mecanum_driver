@@ -53,8 +53,7 @@ To use this module, the following steps should be followed :
 /* Includes ------------------------------------------------------------------*/
 #include "cpu_utils.h"
 #include "FreeRTOS.h"
-#include "task.h"
-
+#include "task.h" 
 /* Private typedef -----------------------------------------------------------*/
 typedef struct tskTaskControlBlock* TaskHandle_t;
 /* Private define ------------------------------------------------------------*/

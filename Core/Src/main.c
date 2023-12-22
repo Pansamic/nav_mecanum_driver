@@ -28,7 +28,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <sys/time.h>
+#include <time.h>
+#include <errno.h>
+#include <stdio.h>
+#include <unistd.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -176,21 +179,43 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 int _gettimeofday( struct timeval *tv, void *tzvp )
 {
-    // you can add code here there many example in google search.
-    return 0;  // return non-zero for error
-} // end _gettimeofday()
-
-int __io_putchar(int ch)
-{
-  /* Place your implementation of fputc here */
-  /* e.g. write a character to the USART1 and Loop until the end of transmission */
-  HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFFFF);
-
-  return ch;
+    (void)tv;
+    (void)tzvp;
+    return 0;
 }
 
+int clock_gettime( clockid_t clock_id,struct timespec * tp )
+{
+    (void)clock_id;
+    RTC_TimeTypeDef rtc_time = {0};
+    RTC_DateTypeDef rtc_date = {0};
+    struct tm _tm;
+    HAL_RTC_GetTime(&hrtc, &rtc_time, RTC_FORMAT_BIN);
+    HAL_RTC_GetDate(&hrtc, &rtc_date, RTC_FORMAT_BIN);
+    _tm.tm_year = rtc_date.Year+70; //RTC_Year rang 0-99,but tm_year since 1900
+    _tm.tm_mon = rtc_date.Month;   //RTC_Month rang 1-12,but tm_mon rang 0-11
+    _tm.tm_mday = rtc_date.Date;     //RTC_Date rang 1-31 and tm_mday rang 1-31
+    _tm.tm_hour = rtc_time.Hours;  //RTC_Hours rang 0-23 and tm_hour rang 0-23
+    _tm.tm_min = rtc_time.Minutes;   //RTC_Minutes rang 0-59 and tm_min rang 0-59
+    _tm.tm_sec = rtc_time.Seconds;
+    tp->tv_sec = mktime(&_tm);
+    tp->tv_nsec = (long)((float)(hrtc.Init.SynchPrediv - rtc_time.SubSeconds)/(hrtc.Init.SynchPrediv+1.0f)*1000000000.0f);
+    return 0;
+}
+int _write(int file, char *data, int len)
+{
+   if ((file != STDOUT_FILENO) && (file != STDERR_FILENO))
+   {
+        errno = EBADF;
+        return -1;
+   }
 
+   // arbitrary timeout 1000
+   HAL_StatusTypeDef status = HAL_UART_Transmit(&huart1, (uint8_t*)data, len, 1000);
 
+   // return # of bytes written - as best we can tell
+   return (status == HAL_OK ? len : 0);
+}
 /* USER CODE END 4 */
 
 /**

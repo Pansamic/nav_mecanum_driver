@@ -24,7 +24,6 @@ History:
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "sensor_msgs/msg/imu.h"
 
 /*****************************************************************************************
  *                                                                                       *
@@ -227,8 +226,8 @@ void     ICM20602_Init          ( void );
 void     ICM20602_SetAccRange   ( uint8_t Range );
 void     ICM20602_SetGyroRange  ( uint8_t Range );
 void     ICM20602_Update        ( void );
+void     ICM20602_UpdateRaw     ( void );
 uint8_t  ICM20602_CheckDataReady( void );
-void     ICM20602_UpdateMessage ( sensor_msgs__msg__Imu* msg);
 
 #ifdef __cplusplus
 }

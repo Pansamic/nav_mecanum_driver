@@ -1,52 +1,114 @@
-# nav_mecanum_driver
+# Micro-XRCE-DDS-Client MCU porting demo
 
-This is driver code for nav_mecanum car.
+This is a Micro-XRCE-DDS-Client porting of STM32F407ZGT6 MCU.
+You can port to another STM32 with the following tutorial.
 
+## Function of This Demo
 
-## Compile
+1. send customized `HelloWorld` message periodically.
+2. use USB CDC(default) or USART1 as transport interface.
 
-### STM32CubeIDE
-
-Open project with STM32CubeIDE and just click `RUN` button.
-
-### CMake and gcc-arm-none-eabi
-
-Install gcc-arm-none-eabi if you haven't install it.
-
-you can install it by simply `apt install gcc-arm-none-eabi` but it's old version before 2021.
-
-Download latest version of gcc-arm-none-eabi from [official website](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads)
-
-For example, download [arm-gnu-toolchain-13.2.rel1-x86_64-arm-none-eabi.tar.xz](https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-arm-none-eabi.tar.xz)
+## Compile and Flash
 
 ```bash
-tar -xf arm-gnu-toolchain-13.2.rel1-x86_64-arm-none-eabi.tar.xz
-cp -r arm-gnu-toolchain-13.2.rel1-x86_64-arm-none-eabi/* /usr
-```
-
-And then gcc-arm-none-eabi is installed to your environment.
-
-```bash
-git clone https://github.com/Pansamic/nav_mecanum_driver
-git submodule init && git submodule update
+git clone https://github.com/Pansamic/Micro-XRCE-DDS-Client-MCU
+git submodule init
+git submodule update
 mkdir build && cd build
-# `cmake ..` is set default to debug build type which is -Og -g3 -ggdb optimization.
-cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake ..
 make -j
+openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program ./Micro-XRCE-DDS-Client-MCU.elf verify reset exit"
 ```
 
-## Flash
+It need to automatically git clone from github. If you failed to compile because of failing to git clone, please check your web connection.
 
-Use OpenOCD or st-tools to flash.
+## Use other MCUs
 
-For convenience, take OpenOCD and tool with ST-Link for example.
+It's impossible to port this to device whose flash size less than 256KB, especially the most common one - STM32F103C8T6 core board.
 
-```bash
-sudo apt update && sudo apt install -y openocd
-cd nav_mecanum_driver/build
-openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program nav_mecanum_driver.elf verify reset exit"
+1. **Create another STM32CubeMX code project**
+    1.1 Configure Clock configuration, notice that RTC clock source is HSE, choose proper division number to make RTC clock under 1000kHz.
+    ![RTC clock configuration](docs/01.png)
+    1.2 RTC configure
+    Make sure RTC clock source(as seen in the picture above is 1000kHz)/(Asynchronous Predivider+1 + Synchronous Predivider+1)=1Hz
+    ![RTC configuration](docs/02.png)
+    1.3 USART configuration
+    Async mode
+    1.4 USB FS configuration
+    ![USB FS configuration](docs/03.png)
+    1.5 USB Device CDC configuration
+    ![USBD CDC configuration](docs/04.png)
+    1.6 FreeRTOS configuration
+    ![FreeRTOS conf 1](docs/05.png)
+    ![FreeRTOS conf 2](docs/06.png)
+    ![FreeRTOS conf 3](docs/07.png)
+
+2. **copy the following files to your project**
+    ```
+    Core/Inc/HelloWorld.h
+    Core/Src/HelloWorld.c
+    Core/Inc/uxr_transport.h
+    Core/Src/uxr_transport_uart_it.c
+    Core/Src/uxr_transport_usb.c
+    toolchains/gcc-arm-none-eabi.cmake
+    CMakeLists.txt
+    ```
+3. **copy essential functions**
+    copy `clock_gettime()` and `__write()` functions in `Core/Src/main.c` to your new `main.c`
+    copy init code of Micro-XRCE-DDS-Client in `Core/Src/freertos.c` to your new `freertos.c`
+
+4. **include essetial headers**
+    just copy included headers in `Core/Src/main.c` and `Core/Src/freertos.c`. Here are some core headers.
+    ```c
+    #include <time.h>
+    #include <errno.h>
+    #include <stdio.h>
+    ```
+
+## Micro-XRCE-DDS-Client Porting Details
+
+### Add Client CMake Project
+
+```cmake
+
+include(ExternalProject)
+
+# Set the URL of the Git repository
+set(UXRCE_URL "https://github.com/eProsima/Micro-XRCE-DDS-Client.git")
+
+# Set the destination directory for the cloned repository
+set(EXTERNAL_REPO_DIR "${CMAKE_BINARY_DIR}/external")
+
+# Set CMake configuration parameters
+set(UXRCE_CMAKE_ARGS
+    -DCMAKE_BUILD_TYPE=Debug
+	-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
+    -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
+	-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+	-DUCLIENT_PIC=OFF
+	-DUCLIENT_PROFILE_DISCOVERY=OFF
+	-DUCLIENT_PROFILE_UDP=OFF
+	-DUCLIENT_PROFILE_TCP=OFF
+	-DUCLIENT_PROFILE_SERIAL=OFF
+    # Add more configuration parameters as needed
+)
+
+# Use ExternalProject_Add to clone the repository and configure the project
+ExternalProject_Add(
+    micro-xrce-dds-client
+    PREFIX ${EXTERNAL_REPO_DIR}
+    GIT_REPOSITORY ${UXRCE_URL}
+    TIMEOUT 1000
+    CMAKE_ARGS ${UXRCE_CMAKE_ARGS}
+)
+
+# Specify the target to depend on the external project
+add_dependencies(${PROJECT_NAME} micro-xrce-dds-client)
+
+target_link_libraries(${PROJECT_NAME}
+	${CMAKE_BINARY_DIR}/install/lib/libmicroxrcedds_client.a
+	${CMAKE_BINARY_DIR}/install/lib/libmicrocdr.a)
+target_include_directories(${PROJECT_NAME} PUBLIC
+	${CMAKE_BINARY_DIR}/install/include
+)
 ```
-
-## Debug
-
-Use VSCode and Cortex-Debug extension to debug. 

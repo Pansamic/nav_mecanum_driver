@@ -23,7 +23,6 @@ extern "C"{
 #include <math.h>
 #include <cmsis_os.h>
 #include <i2c.h>
-#include "rcutils/time.h"
 #include <icm20602.h>
 
 
@@ -79,6 +78,7 @@ ICM20602_t ICM20602_dev;
 void ICM20602_HardwareInit( void );
 void ICM20602_whoAmI( void );
 void ICM20602_StaticCallibration(void);
+void ICM20602_UpdateExtension(void);
 float Kalman_Filter_x(float Angle,float AngVelocity);
 float Kalman_Filter_y(float Angle,float AngVelocity);
 
@@ -187,6 +187,11 @@ void ICM20602_HardwareInit( void )
     ICM20602_SetGyroRange(GFS_1000DPS);
 }
 
+/**
+ * @brief callibrate ICM20602 gyroscope.
+ * @param none
+ * @retval none
+ */
 void ICM20602_StaticCallibration(void)
 {
     int32_t GyroXSum = 0;
@@ -207,18 +212,26 @@ void ICM20602_StaticCallibration(void)
     ICM20602_dev.GOffsetZ = (float)GyroZSum/5000.0f;
 }
 
-/*****************************************************************************************************
- * @name: ICM20602_Update
- * @brief: Read data from ICM20602, calculate attitude angle with kalman filter and update IMU data.
- * @params: 1.TimeInterval: time interval between two updates.
- * @retval: none
- * @author: Wang Geng Jie
- *****************************************************************************************************/
+/**
+ * @brief Read data from ICM20602, calculate attitude angle with kalman filter and update IMU data.
+ * @param TimeInterval time interval between two updates.
+ * @retval none
+ */
 void ICM20602_Update(void)
 {
+    ICM20602_UpdateRaw();
+    ICM20602_UpdateExtension();
+}
+
+/**
+ * @brief read register of ICM20602 and update raw data of ICM20602 struct.
+ * @param none
+ * @retval none
+ */
+void ICM20602_UpdateRaw(void)
+{
     uint8_t Buffer[14];
-    float AngleX = 0;
-    float AngleY = 0;
+
     ICM20602_Read(ICM20602_ACCEL_XOUT_H, Buffer, 14);
     ICM20602_dev.Accel_X_RAW = (Buffer[0]<<8) | Buffer[1];
     ICM20602_dev.Accel_Y_RAW = (Buffer[2]<<8) | Buffer[3];
@@ -234,10 +247,18 @@ void ICM20602_Update(void)
     ICM20602_dev.Gx = ((float)ICM20602_dev.Gyro_X_RAW - ICM20602_dev.GOffsetX )* ICM20602_dev.GyroResolution;
     ICM20602_dev.Gy = ((float)ICM20602_dev.Gyro_Y_RAW - ICM20602_dev.GOffsetY )* ICM20602_dev.GyroResolution;
     ICM20602_dev.Gz = ((float)ICM20602_dev.Gyro_Z_RAW - ICM20602_dev.GOffsetZ )* ICM20602_dev.GyroResolution;
+}
 
+/**
+ * @brief use time interval to calculate attitude angle with kalman filter and update IMU data.
+ * @param none
+ * @retval none
+ */
+void ICM20602_UpdateExtension(void)
+{
 	/* AngelX and AngleY and AngleZ are degree */
-    AngleX = atan2(ICM20602_dev.Ay,ICM20602_dev.Az)*RAD_TO_DEG;
-    AngleY = atan2(ICM20602_dev.Ax,ICM20602_dev.Az)*RAD_TO_DEG;
+    float AngleX = atan2(ICM20602_dev.Ay,ICM20602_dev.Az)*RAD_TO_DEG;
+    float AngleY = atan2(ICM20602_dev.Ax,ICM20602_dev.Az)*RAD_TO_DEG;
 
     /* the following variables are in degree */
     ICM20602_dev.AngleX = Kalman_Filter_x(AngleX, ICM20602_dev.Gx);
@@ -247,36 +268,6 @@ void ICM20602_Update(void)
     ICM20602_dev.VelocityX = ICM20602_dev.Ax * IMU_UPDATE_INTERVAL / 1000.0f;
     ICM20602_dev.VelocityY = ICM20602_dev.Ay * IMU_UPDATE_INTERVAL / 1000.0f;
     ICM20602_dev.VelocityZ = ICM20602_dev.Az * IMU_UPDATE_INTERVAL / 1000.0f;
-}
-
-void ICM20602_UpdateMessage ( sensor_msgs__msg__Imu* msg)
-{
-    uint8_t Buffer[14];
-    rcutils_time_point_value_t current_time;
-    rcutils_ret_t ret;
-
-    ICM20602_Read(ICM20602_ACCEL_XOUT_H, Buffer, 14);
-    ICM20602_dev.Accel_X_RAW = (Buffer[0]<<8) | Buffer[1];
-    ICM20602_dev.Accel_Y_RAW = (Buffer[2]<<8) | Buffer[3];
-    ICM20602_dev.Accel_Z_RAW = (Buffer[4]<<8) | Buffer[5];
-    ICM20602_dev.Temperature = ((Buffer[6]<<8) | Buffer[7])/TEMP_SENSITIVITY + ROOM_TEMP_OFFSET;
-    ICM20602_dev.Gyro_X_RAW = (Buffer[8]<<8) | Buffer[9];
-    ICM20602_dev.Gyro_Y_RAW = (Buffer[10]<<8) | Buffer[11];
-    ICM20602_dev.Gyro_Z_RAW = (Buffer[12]<<8) | Buffer[13];
-
-    ret = rcutils_system_time_now(&current_time);
-    if(ret != RCUTILS_RET_OK)
-    	printf("[ERROR]read systime failed!\r\n");
-    msg->header.stamp.sec = RCUTILS_NS_TO_S(current_time);
-    msg->header.stamp.nanosec = (uint32_t)(current_time - msg->header.stamp.sec*1000000000LL + 300000000);
-//    msg->header.stamp.sec = rmw_uros_epoch_millis();
-//    msg->header.stamp.nanosec = rmw_uros_epoch_nanos();
-    msg->linear_acceleration.y = ((float)ICM20602_dev.Accel_X_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_X_OFFSET)*ELLIPSOID_CALIBRATION_X_SCALE;
-    msg->linear_acceleration.x = ((float)ICM20602_dev.Accel_Y_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_Y_OFFSET)*ELLIPSOID_CALIBRATION_Y_SCALE;
-    msg->linear_acceleration.z = ((float)ICM20602_dev.Accel_Z_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_Z_OFFSET)*ELLIPSOID_CALIBRATION_Z_SCALE;
-    msg->angular_velocity.y = ((float)ICM20602_dev.Gyro_X_RAW - ICM20602_dev.GOffsetX )* ICM20602_dev.GyroResolution;
-    msg->angular_velocity.x = ((float)ICM20602_dev.Gyro_Y_RAW - ICM20602_dev.GOffsetY )* ICM20602_dev.GyroResolution;
-    msg->angular_velocity.z = ((float)ICM20602_dev.Gyro_Z_RAW - ICM20602_dev.GOffsetZ )* ICM20602_dev.GyroResolution;
 }
 
 /*****************************************************************************************
@@ -367,6 +358,8 @@ uint8_t ICM20602_CheckDataReady(void)
 		return 0;
 	}
 }
+
+
 float Kalman_Filter_x(float Angle,float AngVelocity)		
 {
 	//static float angle_dot;

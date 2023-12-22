@@ -31,7 +31,7 @@
 #include <math.h>
 #include <cpu_utils.h>
 
-#include "arm_math.h"
+#include "uxr_client.h"
 
 /* STM32 Peripherals */
 #include "rtc.h"
@@ -41,8 +41,8 @@
 #include "motor.h"
 #include "led.h"
 #include "icm20602.h"
-//#include "mecanum.h"
-#include "microros.h"
+
+
 
 /* USER CODE END Includes */
 
@@ -66,7 +66,7 @@
 
 /* system control states */
 uint16_t ReleaseTime = 0; // unit:ms
-uint8_t u8TaskListBuff[512];
+// uint8_t u8TaskListBuff[32];
 
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
@@ -75,36 +75,10 @@ osThreadId Task_ExecuteSpinHandle;
 osThreadId Task_PingAgentHandle;
 osThreadId Task_PublishJointStatesHandle;
 osTimerId Timer_MotorAdjustHandle;
-osSemaphoreId MicroROSSemaphoreHandle;
+osSemaphoreId UXRSemaphoreHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-///*****************************/
-///*    port comm interface    */
-///*****************************/
-//bool cubemx_transport_open(struct uxrCustomTransport * transport);
-//bool cubemx_transport_close(struct uxrCustomTransport * transport);
-//size_t cubemx_transport_write(struct uxrCustomTransport* transport, const uint8_t * buf, size_t len, uint8_t * err);
-//size_t cubemx_transport_read(struct uxrCustomTransport* transport, uint8_t* buf, size_t len, int timeout, uint8_t* err);
-//
-///*****************************/
-///*     memory management     */
-///*****************************/
-//void * microros_allocate(size_t size, void * state);
-//void   microros_deallocate(void * pointer, void * state);
-//void * microros_reallocate(void * pointer, size_t size, void * state);
-//void * microros_zero_allocate(size_t number_of_elements, size_t size_of_element, void * state);
-//
-///* set wheel velocity subscriber callback function */
-//void set_mecanum_cb(const void * msgin);
-///* set time reference subscriber call back function */
-//void set_time_ref_cb(const void * msgin);
-///* parameter server callback function */
-//bool on_parameter_changed(const Parameter * old_param, const Parameter * new_param, void * context);
-/* mecanum constructure wheel odometry calculation function */
-//void Odometry_Update(nav_msgs__msg__Odometry *odom_msg,float vel_dt, float linear_vel_x, float linear_vel_y, float angular_vel_z);
-/* auxiliary function of `Odometry_Update()` */
-//void euler_to_quat(float roll, float pitch, float yaw, float* q);
 
 /* USER CODE END FunctionPrototypes */
 
@@ -211,8 +185,8 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the semaphores(s) */
   /* definition and creation of MicroROSSemaphore */
-  osSemaphoreDef(MicroROSSemaphore);
-  MicroROSSemaphoreHandle = osSemaphoreCreate(osSemaphore(MicroROSSemaphore), 1);
+  osSemaphoreDef(UXRSemaphore);
+  UXRSemaphoreHandle = osSemaphoreCreate(osSemaphore(UXRSemaphore), 1);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -274,9 +248,10 @@ void MX_FREERTOS_Init(void) {
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
-  /* init code for USB_DEVICE */
-  MX_USB_DEVICE_Init();
-  /* USER CODE BEGIN StartDefaultTask */
+    /* init code for USB_DEVICE */
+    MX_USB_DEVICE_Init();
+    /* USER CODE BEGIN StartDefaultTask */
+
     /***************************************/
     /*           DC motor init             */
     /***************************************/
@@ -344,7 +319,8 @@ void StartDefaultTask(void const * argument)
     HAL_TIM_PWM_Start(&htim1,TIM_CHANNEL_3);
     HAL_TIM_PWM_Start(&htim1,TIM_CHANNEL_4);
 
-    microros_init();
+    uxrce_client_init();
+    create_publisher_imu();
 
     osThreadResume(Task_ExecuteSpinHandle);
     osThreadResume(Task_PublishIMUHandle);
@@ -358,13 +334,11 @@ void StartDefaultTask(void const * argument)
     {
         /* idle task for FreeRTOS memory management */
         osDelay(1000);
-        memset(u8TaskListBuff, 0, 400);
-        vTaskGetRunTimeStats((char*)u8TaskListBuff);
-		printf("[INFO] CPU Usage:%d%%\r\n",osGetCPUUsage());
-
-
+        // memset(u8TaskListBuff, 0, 400);
+        // vTaskGetRunTimeStats((char*)u8TaskListBuff);
+        printf("[INFO] CPU Usage:%d%%\r\n",osGetCPUUsage());
     }
-  /* USER CODE END StartDefaultTask */
+    /* USER CODE END StartDefaultTask */
 }
 
 /* USER CODE BEGIN Header_PublishIMU */
@@ -380,29 +354,23 @@ void PublishIMU(void const * argument)
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 5;
     xLastWakeTime = xTaskGetTickCount();
-    rcl_ret_t ret;
     /* Infinite loop */
     for(;;)
     {
         vTaskDelayUntil( &xLastWakeTime, xFrequency );
-
-        osSemaphoreWait(MicroROSSemaphoreHandle,0XFFFFFFFF);
-        ICM20602_UpdateMessage(&msg_imu);
-        ret = rcl_publish(&pub_imu,&msg_imu,NULL);
-
-        if(ret == RCL_RET_ERROR)
+        osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
+        ICM20602_UpdateRaw();
+        msg_imu.linear_acceleration.x = ICM20602_dev.Ax;
+        msg_imu.linear_acceleration.y = ICM20602_dev.Ay;
+        msg_imu.linear_acceleration.z = ICM20602_dev.Az;
+        msg_imu.angular_velocity.x = ICM20602_dev.Gx;
+        msg_imu.angular_velocity.y = ICM20602_dev.Gy;
+        msg_imu.angular_velocity.z = ICM20602_dev.Gz;
+        if(!msg_publish(&msg_imu))
         {
-            printf("[ERROR]pub imu failed.\r\n");
+            printf("IMU publish failed!\r\n");
         }
-        else if(ret == RCL_RET_INVALID_ARGUMENT)
-        {
-        	printf("[ERROR]pub imu failed: Invalid arguments.\r\n");
-        }
-        else if(ret == RCL_RET_PUBLISHER_INVALID)
-        {
-        	printf("[ERROR]pub imu failed: Invalid publisher.\r\n");
-        }
-        osSemaphoreRelease(MicroROSSemaphoreHandle);
+        osSemaphoreRelease(UXRSemaphoreHandle);
     }
   /* USER CODE END PublishIMU */
 }
@@ -420,10 +388,10 @@ void ExecuteSpin(void const * argument)
     /* Infinite loop */
     for(;;)
     {
-        osSemaphoreWait(MicroROSSemaphoreHandle,0XFFFFFFFF);
+        osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
         // Spin executor to receive messages
-        microros_spinsome();
-        osSemaphoreRelease(MicroROSSemaphoreHandle);
+        // microros_spinsome();
+        osSemaphoreRelease(UXRSemaphoreHandle);
         osDelay(10);
     }
   /* USER CODE END ExecuteSpin */
@@ -447,15 +415,15 @@ void PingAgent(void const * argument)
     for(;;)
     {
         vTaskDelayUntil( &xLastWakeTime, xFrequency );
-        osSemaphoreWait(MicroROSSemaphoreHandle,0XFFFFFFFF);
-        if(rmw_uros_ping_agent(100,1)!=RMW_RET_OK)
-        {
-            printf("[WARN] micro_ros_agent disconnected!\r\n");
-            /* NVIC MCU soft reset */
-        }
-        osSemaphoreRelease(MicroROSSemaphoreHandle);
+        osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
+        // if(rmw_uros_ping_agent(100,1)!=RMW_RET_OK)
+        // {
+        //     printf("[WARN] micro_ros_agent disconnected!\r\n");
+        //     /* NVIC MCU soft reset */
+        // }
+        osSemaphoreRelease(UXRSemaphoreHandle);
     }
-  /* USER CODE END PingAgent */
+    /* USER CODE END PingAgent */
 }
 
 /* USER CODE BEGIN Header_PublishJointStates */
@@ -467,9 +435,9 @@ void PingAgent(void const * argument)
 /* USER CODE END Header_PublishJointStates */
 void PublishJointStates(void const * argument)
 {
-  /* USER CODE BEGIN PublishJointStates */
-	rcl_ret_t ret;
-    rcutils_time_point_value_t current_time;
+    /* USER CODE BEGIN PublishJointStates */
+	// rcl_ret_t ret;
+    // rcutils_time_point_value_t current_time;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 50;
     xLastWakeTime = xTaskGetTickCount();
@@ -478,38 +446,38 @@ void PublishJointStates(void const * argument)
 	for(;;)
 	{
 		vTaskDelayUntil( &xLastWakeTime, xFrequency );
-		joint_states.position[0] = LeftFrontMotor.CurrentAngle;
-		joint_states.position[1] = LeftRearMotor.CurrentAngle;
-		joint_states.position[2] = RightFrontMotor.CurrentAngle;
-		joint_states.position[3] = RightRearMotor.CurrentAngle;
+		// joint_states.position[0] = LeftFrontMotor.CurrentAngle;
+		// joint_states.position[1] = LeftRearMotor.CurrentAngle;
+		// joint_states.position[2] = RightFrontMotor.CurrentAngle;
+		// joint_states.position[3] = RightRearMotor.CurrentAngle;
 
-		joint_states.velocity[0] = LeftFrontMotor.CurrentVelocity;
-		joint_states.velocity[1] = LeftRearMotor.CurrentVelocity;
-		joint_states.velocity[2] = RightFrontMotor.CurrentVelocity;
-		joint_states.velocity[3] = RightRearMotor.CurrentVelocity;
-        ret = rcutils_system_time_now(&current_time);
-        if(ret != RCUTILS_RET_OK)
-        {
-        	printf("[ERROR]read systime failed!\r\n");
-        }
+		// joint_states.velocity[0] = LeftFrontMotor.CurrentVelocity;
+		// joint_states.velocity[1] = LeftRearMotor.CurrentVelocity;
+		// joint_states.velocity[2] = RightFrontMotor.CurrentVelocity;
+		// joint_states.velocity[3] = RightRearMotor.CurrentVelocity;
+        // ret = rcutils_system_time_now(&current_time);
+        // if(ret != RCUTILS_RET_OK)
+        // {
+        // 	printf("[ERROR]read systime failed!\r\n");
+        // }
 
-		msg_joint_state.header.stamp.sec = RCUTILS_NS_TO_S(current_time);
-        msg_joint_state.header.stamp.nanosec = (uint32_t)(current_time - msg_joint_state.header.stamp.sec*1000000000LL);
-		osSemaphoreWait(MicroROSSemaphoreHandle,0XFFFFFFFF);
-		ret = rcl_publish(&pub_joint_states, &msg_joint_state, NULL);
-		osSemaphoreRelease(MicroROSSemaphoreHandle);
-		if(ret == RCL_RET_ERROR)
-		{
-            printf("[ERROR]publish /joint_states failed:publish error.\r\n");
-		}
-		else if(ret == RCL_RET_INVALID_ARGUMENT)
-		{
-            printf("[ERROR]publish /joint_states failed:invalid argument.\r\n");
-		}
-		else if(ret == RCL_RET_PUBLISHER_INVALID)
-		{
-            printf("[ERROR]publish /joint_states failed:publisher invalid.\r\n");
-		}
+		// msg_joint_state.header.stamp.sec = RCUTILS_NS_TO_S(current_time);
+        // msg_joint_state.header.stamp.nanosec = (uint32_t)(current_time - msg_joint_state.header.stamp.sec*1000000000LL);
+		// osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
+		// ret = rcl_publish(&pub_joint_states, &msg_joint_state, NULL);
+		// osSemaphoreRelease(UXRSemaphoreHandle);
+		// if(ret == RCL_RET_ERROR)
+		// {
+        // printf("[ERROR]publish /joint_states failed:publish error.\r\n");
+		// }
+		// else if(ret == RCL_RET_INVALID_ARGUMENT)
+		// {
+        // printf("[ERROR]publish /joint_states failed:invalid argument.\r\n");
+		// }
+		// else if(ret == RCL_RET_PUBLISHER_INVALID)
+		// {
+        // printf("[ERROR]publish /joint_states failed:publisher invalid.\r\n");
+		// }
 	}
 
   /* USER CODE END PublishJointStates */
@@ -522,9 +490,6 @@ void MotorAdjustcb(void const * argument)
 
     if(ReleaseTime == 0)
     {
-//        Car.TargetXVelocity = 0;
-//        Car.TargetYVelocity = 0;
-//        Car.TargetAngularVelocity = 0;
     	DCMotor_SetVelocity(&LeftFrontMotor, 0);
     	DCMotor_SetVelocity(&LeftRearMotor, 0);
     	DCMotor_SetVelocity(&RightFrontMotor, 0);
@@ -535,8 +500,6 @@ void MotorAdjustcb(void const * argument)
         ReleaseTime -= ENCODER_UPDATE_INTERVAL;
     }
 
-//    Car_AdjustedVelocity(&Car);
-
 	DCMotor_AdjustVelocity(&LeftFrontMotor );
 	DCMotor_AdjustVelocity(&LeftRearMotor  );
 	DCMotor_AdjustVelocity(&RightFrontMotor);
@@ -546,71 +509,5 @@ void MotorAdjustcb(void const * argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-
-
-//void euler_to_quat(float roll, float pitch, float yaw, float* q)
-//{
-//    float cy = arm_cos_f32(yaw * 0.5);
-//    float sy = arm_sin_f32(yaw * 0.5);
-//    float cp = arm_cos_f32(pitch * 0.5);
-//    float sp = arm_sin_f32(pitch * 0.5);
-//    float cr = arm_cos_f32(roll * 0.5);
-//    float sr = arm_sin_f32(roll * 0.5);
-//
-//    q[0] = cy * cp * cr + sy * sp * sr;
-//    q[1] = cy * cp * sr - sy * sp * cr;
-//    q[2] = sy * cp * sr + cy * sp * cr;
-//    q[3] = sy * cp * cr - cy * sp * sr;
-//}
-//void Odometry_Update(nav_msgs__msg__Odometry *odom_msg,float vel_dt, float linear_vel_x, float linear_vel_y, float angular_vel_z)
-//{
-//    static float heading_ = 0.0f;
-//    static float x_pos_ = 0.0f;
-//    static float y_pos_ = 0.0f;
-//    float delta_heading = angular_vel_z * vel_dt; //radians
-//    float cos_h = arm_cos_f32(heading_);
-//    float sin_h = arm_sin_f32(heading_);
-//    float delta_x = (linear_vel_x * cos_h - linear_vel_y * sin_h) * vel_dt; //m
-//    float delta_y = (linear_vel_x * sin_h - linear_vel_y * cos_h) * vel_dt; //m
-//
-//    //calculate current position of the robot
-//    x_pos_ += delta_x;
-//    y_pos_ += delta_y;
-//    heading_ += delta_heading;
-//
-//    //calculate robot's heading in quaternion angle
-//    //ROS has a function to calculate yaw in quaternion angle
-//    float q[4];
-//    euler_to_quat(0, 0, heading_, q);
-//
-//    //robot's position in x,y, and z
-//    odom_msg->pose.pose.position.x = x_pos_;
-//    odom_msg->pose.pose.position.y = y_pos_;
-//    odom_msg->pose.pose.position.z = 0.0;
-//
-//    //robot's heading in quaternion
-//    odom_msg->pose.pose.orientation.x = (double) q[1];
-//    odom_msg->pose.pose.orientation.y = (double) q[2];
-//    odom_msg->pose.pose.orientation.z = (double) q[3];
-//    odom_msg->pose.pose.orientation.w = (double) q[0];
-//
-//    odom_msg->pose.covariance[0] = 0.001;
-//    odom_msg->pose.covariance[7] = 0.001;
-//    odom_msg->pose.covariance[35] = 0.001;
-//
-//    //linear speed from encoders
-//    odom_msg->twist.twist.linear.x = linear_vel_x;
-//    odom_msg->twist.twist.linear.y = linear_vel_y;
-//    odom_msg->twist.twist.linear.z = 0.0;
-//
-//    //angular speed from encoders
-//    odom_msg->twist.twist.angular.x = 0.0;
-//    odom_msg->twist.twist.angular.y = 0.0;
-//    odom_msg->twist.twist.angular.z = angular_vel_z;
-//
-//    odom_msg->twist.covariance[0] = 0.0001;
-//    odom_msg->twist.covariance[7] = 0.0001;
-//    odom_msg->twist.covariance[35] = 0.0001;
-//}
 
 /* USER CODE END Application */

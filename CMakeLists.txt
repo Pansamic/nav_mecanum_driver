@@ -42,7 +42,6 @@ set (MFLOAT_ABI               ${MFLOAT_ABI_HARDWARE})
 set (RUNTIME_LIBRARY          ${RUNTIME_LIBRARY_REDUCED_C})
 set (RUNTIME_LIBRARY_SYSCALLS ${RUNTIME_LIBRARY_SYSCALLS_MINIMAL})
 
-
 file (GLOB PROJECT_SOURCES
     BSP/Src/*.c
 	Core/Src/*.c
@@ -101,7 +100,16 @@ add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 
 set (CMAKE_EXECUTABLE_SUFFIX ".elf")
 set (CMAKE_STATIC_LIBRARY_SUFFIX ".a")
+
+
+if(CMAKE_BUILD_TYPE STREQUAL Release)
+set (CMAKE_C_FLAGS "${MCPU} -std=gnu11 ${MFPU} ${MFLOAT_ABI} ${RUNTIME_LIBRARY} -mthumb -Wall -Ofast" CACHE INTERNAL "" FORCE)
+message(STATUS "Release build")
+else()
 set (CMAKE_C_FLAGS "${MCPU} -std=gnu11 ${MFPU} ${MFLOAT_ABI} ${RUNTIME_LIBRARY} -mthumb -Wall -Og -g3 -ggdb" CACHE INTERNAL "" FORCE)
+message(STATUS "Debug build")
+endif()
+
 set (CMAKE_EXE_LINKER_FLAGS "-T${LINKER_SCRIPT} ${RUNTIME_LIBRARY_SYSCALLS} -Wl,-Map=${PROJECT_NAME}.map -Wl,--gc-sections -static -Wl,--start-group -Wl,--end-group")
 set (CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -x assembler-with-cpp")
 
@@ -111,11 +119,11 @@ include(ExternalProject)
 set(UXRCE_URL "https://github.com/eProsima/Micro-XRCE-DDS-Client.git")
 
 # Set the destination directory for the cloned repository
-set(EXTERNAL_REPO_DIR "${CMAKE_BINARY_DIR}/external")
+set(EXTERNAL_REPO_DIR ${CMAKE_BINARY_DIR}/external)
 
 # Set CMake configuration parameters
 set(UXRCE_CMAKE_ARGS
-    -DCMAKE_BUILD_TYPE=Debug
+    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
 	-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
     -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
 	-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
@@ -129,15 +137,15 @@ set(UXRCE_CMAKE_ARGS
 
 # Use ExternalProject_Add to clone the repository and configure the project
 ExternalProject_Add(
-    micro-xrce-dds-client
-    PREFIX ${EXTERNAL_REPO_DIR}
+    uxr_client
+    PREFIX Middlewares/Third_Party/Micro-XRCE-DDS-Client
     GIT_REPOSITORY ${UXRCE_URL}
     TIMEOUT 1000
     CMAKE_ARGS ${UXRCE_CMAKE_ARGS}
 )
 
 # Specify the target to depend on the external project
-add_dependencies(${PROJECT_NAME} micro-xrce-dds-client)
+add_dependencies(${PROJECT_NAME} uxr_client)
 
 target_link_libraries(${PROJECT_NAME}
 	${CMAKE_BINARY_DIR}/install/lib/libmicroxrcedds_client.a
