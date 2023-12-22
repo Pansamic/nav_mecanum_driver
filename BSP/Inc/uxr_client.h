@@ -18,8 +18,13 @@ extern "C" {
 /*                      INCLUDES                      */
 /******************************************************/
 #include <stdint.h>
+#include <uxr/client/client.h>
+#include <uxr/client/util/ping.h>
+#include <ucdr/microcdr.h>
+#include <sensor_msgs/msg/Imu.h>
+#include <sensor_msgs/msg/JointState.h> 
+#include <control_msgs/msg/JointJog.h>
 
-#include "sensor_msgs/msg/Imu.h"
 /******************************************************/
 /*                      TYPEDEF                       */
 /******************************************************/
@@ -37,14 +42,20 @@ extern "C" {
 /*                     VARIABLES                      */
 /******************************************************/
 extern sensor_msgs_msg_Imu msg_imu;
-
+extern sensor_msgs_msg_JointState msg_joint_state;
+extern uxrSession session;
 /******************************************************/
 /*                      FUNCTIONS                     */
 /******************************************************/
 uint8_t uxrce_client_init();
-uint8_t create_publisher(const char * topic_name, const char * data_type);
+
 uint8_t create_publisher_imu();
-uint8_t msg_publish(const void* pmsg);
+uint8_t publish_imu();
+
+uint8_t create_publisher_joint_state();
+uint8_t publish_joint_state();
+
+uint8_t create_subscriber_joint_jog();
 #ifdef __cplusplus
 }
 #endif

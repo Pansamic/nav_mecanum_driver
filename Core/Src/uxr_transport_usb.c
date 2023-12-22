@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include "uxr_transport.h"
+#include <uxr/client/util/time.h>
 #include "usbd_cdc_if.h"
 #include "usbd_cdc.h"
 #include "cRingbuf.h"
@@ -104,19 +105,22 @@ bool my_custom_transport_close(struct uxrCustomTransport * transport)
 size_t my_custom_transport_write(struct uxrCustomTransport* transport, const uint8_t * buf, size_t len, uint8_t * err)
 {
 
-	 /* Original Method*/
-	 uint8_t ret = CDC_Transmit_FS(buf, len);
-	 if (USBD_OK != ret)
-	 {
-	 	return 0;
-	 }
+    /* Original Method*/
+    uint8_t ret = CDC_Transmit_FS(buf, len);
+    int64_t time_init = uxr_millis();
+    if (USBD_OK != ret)
+    {
+        return 0;
+    }
 
-     while(!g_write_complete){}
+    
+    while((!g_write_complete) && ((uxr_millis()-time_init) < 1000)){}
+    // while(!g_write_complete){}
 
-     size_t writed = g_write_complete ? len : 0;
-     g_write_complete = false;
+    size_t writed = g_write_complete ? len : 0;
+    g_write_complete = false;
 
-	 return writed;
+    return writed;
 }
 
 size_t my_custom_transport_read(struct uxrCustomTransport* transport, uint8_t* buf, size_t len, int timeout, uint8_t* err)

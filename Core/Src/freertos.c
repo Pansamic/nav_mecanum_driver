@@ -53,7 +53,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define IMU_READY_SIGNAL (0x00000001)
+#define UXR_CLIENT_REESTABLISH (0x00000001)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -207,23 +207,23 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityIdle, 0, 800);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityIdle, 0, 512);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of Task_PublishIMU */
-  osThreadDef(Task_PublishIMU, PublishIMU, osPriorityAboveNormal, 0, 1024);
+  osThreadDef(Task_PublishIMU, PublishIMU, osPriorityAboveNormal, 0, 512);
   Task_PublishIMUHandle = osThreadCreate(osThread(Task_PublishIMU), NULL);
 
   /* definition and creation of Task_ExecuteSpin */
-  osThreadDef(Task_ExecuteSpin, ExecuteSpin, osPriorityNormal, 0, 2048);
+  osThreadDef(Task_ExecuteSpin, ExecuteSpin, osPriorityBelowNormal, 0, 512);
   Task_ExecuteSpinHandle = osThreadCreate(osThread(Task_ExecuteSpin), NULL);
 
   /* definition and creation of Task_PingAgent */
-  osThreadDef(Task_PingAgent, PingAgent, osPriorityHigh, 0, 1024);
+  osThreadDef(Task_PingAgent, PingAgent, osPriorityHigh, 0, 512);
   Task_PingAgentHandle = osThreadCreate(osThread(Task_PingAgent), NULL);
 
   /* definition and creation of Task_PublishJointStates */
-  osThreadDef(Task_PublishJointStates, PublishJointStates, osPriorityBelowNormal, 0, 1024);
+  osThreadDef(Task_PublishJointStates, PublishJointStates, osPriorityNormal, 0, 512);
   Task_PublishJointStatesHandle = osThreadCreate(osThread(Task_PublishJointStates), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -320,15 +320,19 @@ void StartDefaultTask(void const * argument)
     HAL_TIM_PWM_Start(&htim1,TIM_CHANNEL_4);
 
     uxrce_client_init();
+    
     create_publisher_imu();
+    create_publisher_joint_state();
+    create_subscriber_joint_jog();
+    
 
-    osThreadResume(Task_ExecuteSpinHandle);
+    // osThreadResume(Task_ExecuteSpinHandle);
     osThreadResume(Task_PublishIMUHandle);
-
     osThreadResume(Task_PublishJointStatesHandle);
     // osThreadResume(Task_PingAgentHandle);
     osTimerStart(Timer_MotorAdjustHandle,ENCODER_UPDATE_INTERVAL);
 
+    // uint32_t ulNotifiedValue = 0;
     /* Infinite loop */
     for(;;)
     {
@@ -337,6 +341,19 @@ void StartDefaultTask(void const * argument)
         // memset(u8TaskListBuff, 0, 400);
         // vTaskGetRunTimeStats((char*)u8TaskListBuff);
         printf("[INFO] CPU Usage:%d%%\r\n",osGetCPUUsage());
+        // xTaskNotifyWait(0x00000000,0xFFFFFFFF,&ulNotifiedValue,1000);
+        // if(ulNotifiedValue==UXR_CLIENT_REESTABLISH)
+        // {
+        //     printf("[INFO] Re-establishing Micro-XRCE-DDS-Client connection...\r\n");
+        //     uxr_delete_session(&session);
+        //     uxrce_client_init();
+        //     create_publisher_imu();
+        //     osThreadResume(Task_PublishIMUHandle);
+        //     osThreadResume(Task_PingAgentHandle);
+        //     osThreadResume(Task_ExecuteSpinHandle);
+        //     osThreadResume(Task_PublishJointStatesHandle);
+        //     osTimerStart(Timer_MotorAdjustHandle,ENCODER_UPDATE_INTERVAL);
+        // }
     }
     /* USER CODE END StartDefaultTask */
 }
@@ -353,22 +370,26 @@ void PublishIMU(void const * argument)
   /* USER CODE BEGIN PublishIMU */
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 5;
+    int64_t current_time_nano = 0;
     xLastWakeTime = xTaskGetTickCount();
     /* Infinite loop */
     for(;;)
     {
         vTaskDelayUntil( &xLastWakeTime, xFrequency );
-        osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
         ICM20602_UpdateRaw();
+        current_time_nano = uxr_epoch_nanos(&session);
+        msg_imu.header.stamp.sec = current_time_nano/1000000000;
+        msg_imu.header.stamp.nanosec = current_time_nano%1000000000;
         msg_imu.linear_acceleration.x = ICM20602_dev.Ax;
         msg_imu.linear_acceleration.y = ICM20602_dev.Ay;
         msg_imu.linear_acceleration.z = ICM20602_dev.Az;
         msg_imu.angular_velocity.x = ICM20602_dev.Gx;
         msg_imu.angular_velocity.y = ICM20602_dev.Gy;
         msg_imu.angular_velocity.z = ICM20602_dev.Gz;
-        if(!msg_publish(&msg_imu))
+        osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
+        if(publish_imu())
         {
-            printf("IMU publish failed!\r\n");
+            printf("[ERROR]IMU publish failed!\r\n");
         }
         osSemaphoreRelease(UXRSemaphoreHandle);
     }
@@ -388,11 +409,11 @@ void ExecuteSpin(void const * argument)
     /* Infinite loop */
     for(;;)
     {
-        osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
+        // osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
         // Spin executor to receive messages
-        // microros_spinsome();
-        osSemaphoreRelease(UXRSemaphoreHandle);
-        osDelay(10);
+        uxr_run_session_time(&session, 5);
+        // osSemaphoreRelease(UXRSemaphoreHandle);
+        // osDelay(10);
     }
   /* USER CODE END ExecuteSpin */
 }
@@ -406,7 +427,8 @@ void ExecuteSpin(void const * argument)
 /* USER CODE END Header_PingAgent */
 void PingAgent(void const * argument)
 {
-  /* USER CODE BEGIN PingAgent */
+    /* USER CODE BEGIN PingAgent */
+    uint8_t disconnect_count = 0;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 1000;
     xLastWakeTime = xTaskGetTickCount();
@@ -416,11 +438,27 @@ void PingAgent(void const * argument)
     {
         vTaskDelayUntil( &xLastWakeTime, xFrequency );
         osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
-        // if(rmw_uros_ping_agent(100,1)!=RMW_RET_OK)
-        // {
-        //     printf("[WARN] micro_ros_agent disconnected!\r\n");
-        //     /* NVIC MCU soft reset */
-        // }
+        if (uxr_ping_agent_session(&session, 10, 1))
+        {
+            // printf("[INFO]Agent connected.\r\n");
+            disconnect_count = 0;
+        }
+        else
+        {
+            disconnect_count++;
+            if(disconnect_count >= 3)
+            {
+                printf("[ERROR]Agent disconnected.\r\n");
+                HAL_NVIC_SystemReset();
+                // disconnect_count = 0;
+                // vTaskSuspend(Task_PublishIMUHandle);
+                // vTaskSuspend(Task_PingAgentHandle);
+                // vTaskSuspend(Task_PublishJointStatesHandle);
+                // vTaskSuspend(Task_ExecuteSpinHandle);
+                // xTimerStop(Timer_MotorAdjustHandle,0);
+                // xTaskNotify(defaultTaskHandle,UXR_CLIENT_REESTABLISH,eSetBits);
+            }
+        }
         osSemaphoreRelease(UXRSemaphoreHandle);
     }
     /* USER CODE END PingAgent */
@@ -436,49 +474,35 @@ void PingAgent(void const * argument)
 void PublishJointStates(void const * argument)
 {
     /* USER CODE BEGIN PublishJointStates */
-	// rcl_ret_t ret;
-    // rcutils_time_point_value_t current_time;
+    int64_t current_time_nano = 0;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 50;
     xLastWakeTime = xTaskGetTickCount();
 
-	/* Infinite loop */
-	for(;;)
-	{
-		vTaskDelayUntil( &xLastWakeTime, xFrequency );
-		// joint_states.position[0] = LeftFrontMotor.CurrentAngle;
-		// joint_states.position[1] = LeftRearMotor.CurrentAngle;
-		// joint_states.position[2] = RightFrontMotor.CurrentAngle;
-		// joint_states.position[3] = RightRearMotor.CurrentAngle;
+    /* Infinite loop */
+    for(;;)
+    {
+        vTaskDelayUntil( &xLastWakeTime, xFrequency );
+        msg_joint_state.position[0] = LeftFrontMotor.CurrentAngle;
+        msg_joint_state.position[1] = LeftRearMotor.CurrentAngle;
+        msg_joint_state.position[2] = RightFrontMotor.CurrentAngle;
+        msg_joint_state.position[3] = RightRearMotor.CurrentAngle;
 
-		// joint_states.velocity[0] = LeftFrontMotor.CurrentVelocity;
-		// joint_states.velocity[1] = LeftRearMotor.CurrentVelocity;
-		// joint_states.velocity[2] = RightFrontMotor.CurrentVelocity;
-		// joint_states.velocity[3] = RightRearMotor.CurrentVelocity;
-        // ret = rcutils_system_time_now(&current_time);
-        // if(ret != RCUTILS_RET_OK)
-        // {
-        // 	printf("[ERROR]read systime failed!\r\n");
-        // }
+        msg_joint_state.velocity[0] = LeftFrontMotor.CurrentVelocity;
+        msg_joint_state.velocity[1] = LeftRearMotor.CurrentVelocity;
+        msg_joint_state.velocity[2] = RightFrontMotor.CurrentVelocity;
+        msg_joint_state.velocity[3] = RightRearMotor.CurrentVelocity;
 
-		// msg_joint_state.header.stamp.sec = RCUTILS_NS_TO_S(current_time);
-        // msg_joint_state.header.stamp.nanosec = (uint32_t)(current_time - msg_joint_state.header.stamp.sec*1000000000LL);
-		// osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
-		// ret = rcl_publish(&pub_joint_states, &msg_joint_state, NULL);
-		// osSemaphoreRelease(UXRSemaphoreHandle);
-		// if(ret == RCL_RET_ERROR)
-		// {
-        // printf("[ERROR]publish /joint_states failed:publish error.\r\n");
-		// }
-		// else if(ret == RCL_RET_INVALID_ARGUMENT)
-		// {
-        // printf("[ERROR]publish /joint_states failed:invalid argument.\r\n");
-		// }
-		// else if(ret == RCL_RET_PUBLISHER_INVALID)
-		// {
-        // printf("[ERROR]publish /joint_states failed:publisher invalid.\r\n");
-		// }
-	}
+        osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
+        current_time_nano = uxr_epoch_nanos(&session);
+        msg_joint_state.header.stamp.sec = current_time_nano/1000000000;
+        msg_joint_state.header.stamp.nanosec = current_time_nano%1000000000;
+        if(publish_joint_state())
+        {
+            printf("[ERROR]Joint state publish failed!\r\n");
+        }
+        osSemaphoreRelease(UXRSemaphoreHandle);
+    }
 
   /* USER CODE END PublishJointStates */
 }
@@ -490,20 +514,20 @@ void MotorAdjustcb(void const * argument)
 
     if(ReleaseTime == 0)
     {
-    	DCMotor_SetVelocity(&LeftFrontMotor, 0);
-    	DCMotor_SetVelocity(&LeftRearMotor, 0);
-    	DCMotor_SetVelocity(&RightFrontMotor, 0);
-    	DCMotor_SetVelocity(&RightRearMotor, 0);
+        DCMotor_SetVelocity(&LeftFrontMotor, 0);
+        DCMotor_SetVelocity(&LeftRearMotor, 0);
+        DCMotor_SetVelocity(&RightFrontMotor, 0);
+        DCMotor_SetVelocity(&RightRearMotor, 0);
     }
     else
     {
         ReleaseTime -= ENCODER_UPDATE_INTERVAL;
     }
 
-	DCMotor_AdjustVelocity(&LeftFrontMotor );
-	DCMotor_AdjustVelocity(&LeftRearMotor  );
-	DCMotor_AdjustVelocity(&RightFrontMotor);
-	DCMotor_AdjustVelocity(&RightRearMotor );
+    DCMotor_AdjustVelocity(&LeftFrontMotor );
+    DCMotor_AdjustVelocity(&LeftRearMotor  );
+    DCMotor_AdjustVelocity(&RightFrontMotor);
+    DCMotor_AdjustVelocity(&RightRearMotor );
   /* USER CODE END MotorAdjustcb */
 }
 
