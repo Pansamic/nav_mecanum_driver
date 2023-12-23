@@ -181,38 +181,38 @@ typedef struct
 {
 	/* Gyro related */
     uint8_t GyroRange;
-    float GyroResolution;
+    double GyroResolution;
     int16_t Gyro_X_RAW;
     int16_t Gyro_Y_RAW;
     int16_t Gyro_Z_RAW;
-    float Gx;
-    float Gy;
-    float Gz;
-    float GOffsetX;
-    float GOffsetY;
-    float GOffsetZ;
+    double Gx;            // unit: rad/s
+    double Gy;
+    double Gz;
+    double GOffsetX;
+    double GOffsetY;
+    double GOffsetZ;
 
     /* Accelerometer related */
     uint8_t AccelRange;
-    float AccelResolution;
+    double AccelResolution;
     int16_t Accel_X_RAW;
     int16_t Accel_Y_RAW;
     int16_t Accel_Z_RAW;
-    float Ax;
-    float Ay;
-    float Az;
+    double Ax;
+    double Ay;
+    double Az;
 
-    float Temperature;
+    double Temperature;
 
     /* Kalman filter for Gyro and its output values */
-    float AngleX;
-    float AngleY;
-    float AngleZ;
+    double AngleX;
+    double AngleY;
+    double AngleZ;
 
     /* Kalman filter for Accelerometer and its output values */
-    float VelocityX;
-    float VelocityY;
-    float VelocityZ;
+    double VelocityX;
+    double VelocityY;
+    double VelocityZ;
 } ICM20602_t;
 
 extern ICM20602_t ICM20602_dev;

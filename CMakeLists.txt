@@ -91,10 +91,10 @@ set (CMAKE_STATIC_LIBRARY_SUFFIX ".a")
 
 
 if(CMAKE_BUILD_TYPE STREQUAL Release)
-set (CMAKE_C_FLAGS "${MCPU} -std=gnu11 ${MFPU} ${MFLOAT_ABI} ${RUNTIME_LIBRARY} -mthumb -Wall -Ofast" CACHE INTERNAL "" FORCE)
+set (CMAKE_C_FLAGS "${MCPU} -std=gnu11 ${MFPU} ${MFLOAT_ABI} ${RUNTIME_LIBRARY} -mthumb -u _printf_float -Wall -Ofast" CACHE INTERNAL "" FORCE)
 message(STATUS "Release build")
 else()
-set (CMAKE_C_FLAGS "${MCPU} -std=gnu11 ${MFPU} ${MFLOAT_ABI} ${RUNTIME_LIBRARY} -mthumb -Wall -Og -g3 -ggdb" CACHE INTERNAL "" FORCE)
+set (CMAKE_C_FLAGS "${MCPU} -std=gnu11 ${MFPU} ${MFLOAT_ABI} ${RUNTIME_LIBRARY} -mthumb -u _printf_float -Wall -Og -g3 -ggdb" CACHE INTERNAL "" FORCE)
 message(STATUS "Debug build")
 endif()
 

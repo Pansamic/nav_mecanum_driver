@@ -79,8 +79,8 @@ void ICM20602_HardwareInit( void );
 void ICM20602_whoAmI( void );
 void ICM20602_StaticCallibration(void);
 void ICM20602_UpdateExtension(void);
-float Kalman_Filter_x(float Angle,float AngVelocity);
-float Kalman_Filter_y(float Angle,float AngVelocity);
+double Kalman_Filter_x(double Angle,double AngVelocity);
+double Kalman_Filter_y(double Angle,double AngVelocity);
 
 /*****************************************************************************************
  *                                                                                       *
@@ -129,7 +129,7 @@ void ICM20602_Init(void)
     osDelay(1000);
 	printf("[INFO] ICM20602 callibration start.\r\n");
     ICM20602_StaticCallibration();
-	printf("[INFO] ICM20602 callibration done. X-ofs=%.2f|Y-ofs=%.2f|Z-ofs=%.2f\r\n",ICM20602_dev.GOffsetX, ICM20602_dev.GOffsetY, ICM20602_dev.GOffsetZ);
+	printf("[INFO] ICM20602 callibration done. X-ofs=%.2lf|Y-ofs=%.2lf|Z-ofs=%.2lf\r\n",ICM20602_dev.GOffsetX, ICM20602_dev.GOffsetY, ICM20602_dev.GOffsetZ);
     /* configure interrupt:
      * BIT-7(WOM_X_INT_EN):1 – Enable WoM interrupt on X-axis accelerometer. Default setting is 0.
      * BIT-6(WOM_Y_INT_EN):1 – Enable WoM interrupt on Y-axis accelerometer. Default setting is 0.
@@ -207,9 +207,9 @@ void ICM20602_StaticCallibration(void)
         GyroZSum += (int16_t)((Buffer[4]<<8) | Buffer[5]);
         osDelay(1);
     }
-    ICM20602_dev.GOffsetX = (float)GyroXSum/5000.0f;
-    ICM20602_dev.GOffsetY = (float)GyroYSum/5000.0f;
-    ICM20602_dev.GOffsetZ = (float)GyroZSum/5000.0f;
+    ICM20602_dev.GOffsetX = (double)GyroXSum/5000.0;
+    ICM20602_dev.GOffsetY = (double)GyroYSum/5000.0;
+    ICM20602_dev.GOffsetZ = (double)GyroZSum/5000.0;
 }
 
 /**
@@ -241,12 +241,12 @@ void ICM20602_UpdateRaw(void)
     ICM20602_dev.Gyro_Y_RAW = (Buffer[10]<<8) | Buffer[11];
     ICM20602_dev.Gyro_Z_RAW = (Buffer[12]<<8) | Buffer[13];
 
-    ICM20602_dev.Ax = ((float)ICM20602_dev.Accel_X_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_X_OFFSET)*ELLIPSOID_CALIBRATION_X_SCALE;
-    ICM20602_dev.Ay = ((float)ICM20602_dev.Accel_Y_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_Y_OFFSET)*ELLIPSOID_CALIBRATION_Y_SCALE;
-    ICM20602_dev.Az = ((float)ICM20602_dev.Accel_Z_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_Z_OFFSET)*ELLIPSOID_CALIBRATION_Z_SCALE;
-    ICM20602_dev.Gx = ((float)ICM20602_dev.Gyro_X_RAW - ICM20602_dev.GOffsetX )* ICM20602_dev.GyroResolution;
-    ICM20602_dev.Gy = ((float)ICM20602_dev.Gyro_Y_RAW - ICM20602_dev.GOffsetY )* ICM20602_dev.GyroResolution;
-    ICM20602_dev.Gz = ((float)ICM20602_dev.Gyro_Z_RAW - ICM20602_dev.GOffsetZ )* ICM20602_dev.GyroResolution;
+    ICM20602_dev.Ax = ((double)ICM20602_dev.Accel_X_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_X_OFFSET)*ELLIPSOID_CALIBRATION_X_SCALE;
+    ICM20602_dev.Ay = ((double)ICM20602_dev.Accel_Y_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_Y_OFFSET)*ELLIPSOID_CALIBRATION_Y_SCALE;
+    ICM20602_dev.Az = ((double)ICM20602_dev.Accel_Z_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_Z_OFFSET)*ELLIPSOID_CALIBRATION_Z_SCALE;
+    ICM20602_dev.Gx = ((double)ICM20602_dev.Gyro_X_RAW - ICM20602_dev.GOffsetX )* ICM20602_dev.GyroResolution * DEG_TO_REG;
+    ICM20602_dev.Gy = ((double)ICM20602_dev.Gyro_Y_RAW - ICM20602_dev.GOffsetY )* ICM20602_dev.GyroResolution * DEG_TO_REG;
+    ICM20602_dev.Gz = ((double)ICM20602_dev.Gyro_Z_RAW - ICM20602_dev.GOffsetZ )* ICM20602_dev.GyroResolution * DEG_TO_REG;
 }
 
 /**
@@ -257,8 +257,8 @@ void ICM20602_UpdateRaw(void)
 void ICM20602_UpdateExtension(void)
 {
 	/* AngelX and AngleY and AngleZ are degree */
-    float AngleX = atan2(ICM20602_dev.Ay,ICM20602_dev.Az)*RAD_TO_DEG;
-    float AngleY = atan2(ICM20602_dev.Ax,ICM20602_dev.Az)*RAD_TO_DEG;
+    double AngleX = atan2(ICM20602_dev.Ay,ICM20602_dev.Az);
+    double AngleY = atan2(ICM20602_dev.Ax,ICM20602_dev.Az);
 
     /* the following variables are in degree */
     ICM20602_dev.AngleX = Kalman_Filter_x(AngleX, ICM20602_dev.Gx);
@@ -360,19 +360,19 @@ uint8_t ICM20602_CheckDataReady(void)
 }
 
 
-float Kalman_Filter_x(float Angle,float AngVelocity)		
+double Kalman_Filter_x(double Angle,double AngVelocity)		
 {
-	//static float angle_dot;
-	static float angle;
-	float Q_angle=0.001; 		// 过程噪声的协方差
-	float Q_gyro=0.003;			// 0.003 过程噪声的协方差 过程噪声的协方差为一个一行两列矩阵
-	float R_angle=0.5;			// 测量噪声的协方差 既测量偏差
+	//static double angle_dot;
+	static double angle;
+	double Q_angle=0.001; 		// 过程噪声的协方差
+	double Q_gyro=0.003;			// 0.003 过程噪声的协方差 过程噪声的协方差为一个一行两列矩阵
+	double R_angle=0.5;			// 测量噪声的协方差 既测量偏差
 	char  C_0 = 1;
-	static float Q_bias, Angle_err;
-	static float PCt_0, PCt_1, E;
-	static float K_0, K_1, t_0, t_1;
-	static float Pdot[4] ={0,0,0,0};
-	static float PP[2][2] = { { 1, 0 },{ 0, 1 } };
+	static double Q_bias, Angle_err;
+	static double PCt_0, PCt_1, E;
+	static double K_0, K_1, t_0, t_1;
+	static double Pdot[4] ={0,0,0,0};
+	static double PP[2][2] = { { 1, 0 },{ 0, 1 } };
 	angle+=(AngVelocity - Q_bias) * IMU_UPDATE_INTERVAL/1000; //先验估计
 	Pdot[0]=Q_angle - PP[0][1] - PP[1][0]; // Pk-先验估计误差协方差的微分
 	Pdot[1]=-PP[1][1];
@@ -405,19 +405,19 @@ float Kalman_Filter_x(float Angle,float AngVelocity)
 	//angle_dot   = Gyro - Q_bias;	//输出值(后验估计)的微分=角速度
 	return angle;
 }
-float Kalman_Filter_y(float Angle,float AngVelocity)		
+double Kalman_Filter_y(double Angle,double AngVelocity)		
 {
-	//static float angle_dot;
-	static float angle;
-	float Q_angle=0.001; 		// 过程噪声的协方差
-	float Q_gyro=0.003;			// 0.003 过程噪声的协方差 过程噪声的协方差为一个一行两列矩阵
-	float R_angle=0.5;			// 测量噪声的协方差 既测量偏差
+	//static double angle_dot;
+	static double angle;
+	double Q_angle=0.001; 		// 过程噪声的协方差
+	double Q_gyro=0.003;			// 0.003 过程噪声的协方差 过程噪声的协方差为一个一行两列矩阵
+	double R_angle=0.5;			// 测量噪声的协方差 既测量偏差
 	char  C_0 = 1;
-	static float Q_bias, Angle_err;
-	static float PCt_0, PCt_1, E;
-	static float K_0, K_1, t_0, t_1;
-	static float Pdot[4] ={0,0,0,0};
-	static float PP[2][2] = { { 1, 0 },{ 0, 1 } };
+	static double Q_bias, Angle_err;
+	static double PCt_0, PCt_1, E;
+	static double K_0, K_1, t_0, t_1;
+	static double Pdot[4] ={0,0,0,0};
+	static double PP[2][2] = { { 1, 0 },{ 0, 1 } };
 	angle+=(AngVelocity - Q_bias) * IMU_UPDATE_INTERVAL/1000; //先验估计
 	Pdot[0]=Q_angle - PP[0][1] - PP[1][0]; // Pk-先验估计误差协方差的微分
 	Pdot[1]=-PP[1][1];

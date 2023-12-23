@@ -350,7 +350,7 @@ void on_topic(
 	DCMotor_SetVelocity(&LeftRearMotor, (float)msg_joint_jog.velocities[1]);
 	DCMotor_SetVelocity(&RightFrontMotor, (float)msg_joint_jog.velocities[2]);
 	DCMotor_SetVelocity(&RightRearMotor, (float)msg_joint_jog.velocities[3]);
-	printf("[INFO] recv vel: 1:%f | 2:%f | 3:%f | 4:%f\r\n",
+	printf("[INFO] recv vel: 1:%.2f | 2:%.2f | 3:%.2f | 4:%.2f\r\n",
 			LeftFrontMotor.TargetVelocity,
 			LeftRearMotor.TargetVelocity,
 			RightFrontMotor.TargetVelocity,

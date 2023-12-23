@@ -376,15 +376,15 @@ void PublishIMU(void const * argument)
     for(;;)
     {
         vTaskDelayUntil( &xLastWakeTime, xFrequency );
-        ICM20602_UpdateRaw();
+        ICM20602_Update();
         current_time_nano = uxr_epoch_nanos(&session);
         msg_imu.header.stamp.sec = current_time_nano/1000000000;
         msg_imu.header.stamp.nanosec = current_time_nano%1000000000;
-        msg_imu.linear_acceleration.x = ICM20602_dev.Ax;
-        msg_imu.linear_acceleration.y = ICM20602_dev.Ay;
+        msg_imu.linear_acceleration.x = -ICM20602_dev.Ay;
+        msg_imu.linear_acceleration.y = ICM20602_dev.Ax;
         msg_imu.linear_acceleration.z = ICM20602_dev.Az;
-        msg_imu.angular_velocity.x = ICM20602_dev.Gx;
-        msg_imu.angular_velocity.y = ICM20602_dev.Gy;
+        msg_imu.angular_velocity.x = ICM20602_dev.Gy;
+        msg_imu.angular_velocity.y = ICM20602_dev.Gx;
         msg_imu.angular_velocity.z = ICM20602_dev.Gz;
         osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
         if(publish_imu())
@@ -392,6 +392,7 @@ void PublishIMU(void const * argument)
             printf("[ERROR]IMU publish failed!\r\n");
         }
         osSemaphoreRelease(UXRSemaphoreHandle);
+        // printf("[INFO] X=%lf Y=%lf Z=%lf\r\n", ICM20602_dev.AngleX, ICM20602_dev.AngleY, ICM20602_dev.AngleZ);
     }
   /* USER CODE END PublishIMU */
 }
@@ -411,7 +412,8 @@ void ExecuteSpin(void const * argument)
     {
         // osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
         // Spin executor to receive messages
-        uxr_run_session_time(&session, 5);
+        // uxr_run_session_time(&session, 0);
+        uxr_run_session_until_data(&session,0x7FFFFFFF);
         // osSemaphoreRelease(UXRSemaphoreHandle);
         // osDelay(10);
     }
@@ -504,7 +506,7 @@ void PublishJointStates(void const * argument)
         osSemaphoreRelease(UXRSemaphoreHandle);
     }
 
-  /* USER CODE END PublishJointStates */
+    /* USER CODE END PublishJointStates */
 }
 
 /* MotorAdjustcb function */
