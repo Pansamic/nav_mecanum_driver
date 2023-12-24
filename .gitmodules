@@ -1,6 +1,6 @@
-[submodule "Core/cRingbuf"]
-	path = Core/cRingbuf
-	url = https://github.com/Pansamic/cRingbuf
 [submodule "Middlewares/Third_Party/Micro-XRCE-DDS-ROS2-Msg"]
 	path = Middlewares/Third_Party/Micro-XRCE-DDS-ROS2-Msg
 	url = https://github.com/Pansamic/Micro-XRCE-DDS-ROS2-Msg
+[submodule "Middlewares/Third_Party/cRingbuf"]
+	path = Middlewares/Third_Party/cRingbuf
+	url = https://github.com/Pansamic/cRingbuf
