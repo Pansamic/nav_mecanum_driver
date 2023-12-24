@@ -46,20 +46,19 @@ set (CMAKE_BUILD_TYPE         Debug)
 file (GLOB PROJECT_SOURCES
 	BSP/Src/*.c
 	Core/Src/*.c
-	Core/cRingbuf/cRingbuf.c
 	Core/Startup/startup_stm32f407zgtx.s
 	Drivers/STM32F4xx_HAL_Driver/Src/*.c
 	micro_ros_stm32cubemx_utils/extra_sources/microros_transports/usb_cdc_transport.c
 	micro_ros_stm32cubemx_utils/extra_sources/*.c
 	Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
 	Middlewares/ST/STM32_USB_Device_Library/Core/Src/*.c
+	Middlewares/Third_Party/cRingbuf/cRingbuf.c
 	Middlewares/Third_Party/FreeRTOS/Source/*.c
 	Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c
 	Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c
 	Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.c
 	USB_DEVICE/App/*.c
 	USB_DEVICE/Target/usbd_conf.c
-
 	)
 
 set (PROJECT_DEFINES
@@ -73,7 +72,6 @@ set (PROJECT_INCLUDES
 	# LIST INCLUDE DIRECTORIES HERE
 	BSP/Inc
 	Core/Inc
-	Core/cRingbuf
 	Drivers/CMSIS/Include
 	Drivers/CMSIS/DSP/Include
 	Drivers/CMSIS/Device/ST/STM32F4xx/Include
@@ -81,6 +79,7 @@ set (PROJECT_INCLUDES
 	micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include
 	Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc
 	Middlewares/ST/STM32_USB_Device_Library/Core/Inc
+	Middlewares/Third_Party/cRingbuf
 	Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS
 	Middlewares/Third_Party/FreeRTOS/Source/include
 	Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F
