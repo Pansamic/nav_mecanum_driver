@@ -22,15 +22,11 @@
 #include "uxr_client.h"
 #include "uxr_transport.h"
 
-/* Board Peripheral drivers */
-#include "motor.h"
-#include "led.h"
-#include "icm20602.h"
 
 /******************************************************/
 /*                      DEFINES                       */
 /******************************************************/
-#define STREAM_HISTORY  4
+#define STREAM_HISTORY  8
 #define STREAM_BUFFER_SIZE UXR_CONFIG_CUSTOM_TRANSPORT_MTU * STREAM_HISTORY
 #define IMU_MSG_INDEX 0x01
 #define JOINT_STATE_MSG_INDEX 0x02
@@ -86,14 +82,7 @@ uxrObjectId datareader_id_joint_jog;
 /******************************************************/
 /*                     DECLARATION                    */
 /******************************************************/
-void on_topic(
-        uxrSession* session,
-        uxrObjectId object_id,
-        uint16_t request_id,
-        uxrStreamId stream_id,
-        struct ucdrBuffer* ub,
-        uint16_t length,
-        void* args);
+
 /******************************************************/
 /*                     DEFINITION                     */
 /******************************************************/
@@ -145,7 +134,15 @@ uint8_t uxrce_client_init()
         printf("[Error]Create participant failed: %d.\r\n", status);
         return 1;
     }
-    uxr_sync_session(&session,1000);
+    if(uxr_sync_session(&session,1000))
+    {
+        printf("[INFO]Sync session success.\r\n");
+    }
+    else
+    {
+        printf("[Error]Sync session failed.\r\n");
+        return 1;
+    }
     return 0;
 }
 
@@ -335,24 +332,3 @@ uint8_t create_subscriber_joint_jog()
 }
 
 
-void on_topic(
-        uxrSession* session,
-        uxrObjectId object_id,
-        uint16_t request_id,
-        uxrStreamId stream_id,
-        struct ucdrBuffer* ub,
-        uint16_t length,
-        void* args)
-{
-    (void) session; (void) object_id; (void) request_id; (void) stream_id; (void) length;
-    control_msgs_msg_JointJog_deserialize_topic(ub, &msg_joint_jog);
-	DCMotor_SetVelocity(&LeftFrontMotor, (float)msg_joint_jog.velocities[0]);
-	DCMotor_SetVelocity(&LeftRearMotor, (float)msg_joint_jog.velocities[1]);
-	DCMotor_SetVelocity(&RightFrontMotor, (float)msg_joint_jog.velocities[2]);
-	DCMotor_SetVelocity(&RightRearMotor, (float)msg_joint_jog.velocities[3]);
-	printf("[INFO] recv vel: 1:%.2f | 2:%.2f | 3:%.2f | 4:%.2f\r\n",
-			LeftFrontMotor.TargetVelocity,
-			LeftRearMotor.TargetVelocity,
-			RightFrontMotor.TargetVelocity,
-			RightRearMotor.TargetVelocity);
-}

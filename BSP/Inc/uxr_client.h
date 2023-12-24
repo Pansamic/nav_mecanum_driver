@@ -43,6 +43,7 @@ extern "C" {
 /******************************************************/
 extern sensor_msgs_msg_Imu msg_imu;
 extern sensor_msgs_msg_JointState msg_joint_state;
+extern control_msgs_msg_JointJog msg_joint_jog;
 extern uxrSession session;
 /******************************************************/
 /*                      FUNCTIONS                     */
@@ -56,6 +57,15 @@ uint8_t create_publisher_joint_state();
 uint8_t publish_joint_state();
 
 uint8_t create_subscriber_joint_jog();
+
+void on_topic(
+        uxrSession* session,
+        uxrObjectId object_id,
+        uint16_t request_id,
+        uxrStreamId stream_id,
+        struct ucdrBuffer* ub,
+        uint16_t length,
+        void* args);
 #ifdef __cplusplus
 }
 #endif

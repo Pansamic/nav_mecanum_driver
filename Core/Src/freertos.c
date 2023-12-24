@@ -319,7 +319,16 @@ void StartDefaultTask(void const * argument)
     HAL_TIM_PWM_Start(&htim1,TIM_CHANNEL_3);
     HAL_TIM_PWM_Start(&htim1,TIM_CHANNEL_4);
 
-    uxrce_client_init();
+    if(uxrce_client_init())
+    {
+        printf("[ERROR]Micro-XRCE-DDS-Client initialization failed.\r\n");
+        Set_RGBLED(RED_ON, GREEN_OFF, BLUE_OFF);
+    }
+    else
+    {
+        Set_RGBLED(RED_OFF, GREEN_ON, BLUE_OFF);
+        printf("[INFO]Micro-XRCE-DDS-Client initialized.\r\n");
+    }
     
     create_publisher_imu();
     create_publisher_joint_state();
@@ -410,12 +419,13 @@ void ExecuteSpin(void const * argument)
     /* Infinite loop */
     for(;;)
     {
-        // osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
+        osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
         // Spin executor to receive messages
-        // uxr_run_session_time(&session, 0);
-        uxr_run_session_until_data(&session,0x7FFFFFFF);
-        // osSemaphoreRelease(UXRSemaphoreHandle);
-        // osDelay(10);
+        uxr_run_session_timeout(&session, 100);
+        // uxr_run_session_until_confirm_delivery(&session ,0x7FFFFFFF);
+        // uxr_run_session_until_data(&session,0x7FFFFFFF);
+        osSemaphoreRelease(UXRSemaphoreHandle);
+        osDelay(5);
     }
   /* USER CODE END ExecuteSpin */
 }
@@ -535,5 +545,25 @@ void MotorAdjustcb(void const * argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-
+void on_topic(
+        uxrSession* session,
+        uxrObjectId object_id,
+        uint16_t request_id,
+        uxrStreamId stream_id,
+        struct ucdrBuffer* ub,
+        uint16_t length,
+        void* args)
+{
+    (void) session; (void) object_id; (void) request_id; (void) stream_id; (void) length;
+    control_msgs_msg_JointJog_deserialize_topic(ub, &msg_joint_jog);
+	DCMotor_SetVelocity(&LeftFrontMotor, (float)msg_joint_jog.velocities[0]);
+	DCMotor_SetVelocity(&LeftRearMotor, (float)msg_joint_jog.velocities[1]);
+	DCMotor_SetVelocity(&RightFrontMotor, (float)msg_joint_jog.velocities[2]);
+	DCMotor_SetVelocity(&RightRearMotor, (float)msg_joint_jog.velocities[3]);
+	printf("[INFO] recv vel: 1:%.2f | 2:%.2f | 3:%.2f | 4:%.2f\r\n",
+			LeftFrontMotor.TargetVelocity,
+			LeftRearMotor.TargetVelocity,
+			RightFrontMotor.TargetVelocity,
+			RightRearMotor.TargetVelocity);
+}
 /* USER CODE END Application */
