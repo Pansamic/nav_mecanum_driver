@@ -360,7 +360,7 @@ void StartDefaultTask(void const * argument)
         osDelay(1000);
         memset(u8TaskListBuff, 0, 400);
         vTaskGetRunTimeStats((char*)u8TaskListBuff);
-		printf("[INFO] CPU Usage:%d%%\r\n",osGetCPUUsage());
+        printf("[INFO] CPU Usage:%d%%\r\n",osGetCPUUsage());
 
 
     }
@@ -396,11 +396,11 @@ void PublishIMU(void const * argument)
         }
         else if(ret == RCL_RET_INVALID_ARGUMENT)
         {
-        	printf("[ERROR]pub imu failed: Invalid arguments.\r\n");
+            printf("[ERROR]pub imu failed: Invalid arguments.\r\n");
         }
         else if(ret == RCL_RET_PUBLISHER_INVALID)
         {
-        	printf("[ERROR]pub imu failed: Invalid publisher.\r\n");
+            printf("[ERROR]pub imu failed: Invalid publisher.\r\n");
         }
         osSemaphoreRelease(MicroROSSemaphoreHandle);
     }
@@ -467,50 +467,46 @@ void PingAgent(void const * argument)
 /* USER CODE END Header_PublishJointStates */
 void PublishJointStates(void const * argument)
 {
-  /* USER CODE BEGIN PublishJointStates */
-	rcl_ret_t ret;
-    rcutils_time_point_value_t current_time;
+    /* USER CODE BEGIN PublishJointStates */
+    rcl_ret_t ret;
+    int64_t current_time_nanos;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 50;
     xLastWakeTime = xTaskGetTickCount();
 
-	/* Infinite loop */
-	for(;;)
-	{
-		vTaskDelayUntil( &xLastWakeTime, xFrequency );
-		joint_states.position[0] = LeftFrontMotor.CurrentAngle;
-		joint_states.position[1] = LeftRearMotor.CurrentAngle;
-		joint_states.position[2] = RightFrontMotor.CurrentAngle;
-		joint_states.position[3] = RightRearMotor.CurrentAngle;
+    /* Infinite loop */
+    for(;;)
+    {
+        vTaskDelayUntil( &xLastWakeTime, xFrequency );
+        joint_states.position[0] = LeftFrontMotor.CurrentAngle;
+        joint_states.position[1] = LeftRearMotor.CurrentAngle;
+        joint_states.position[2] = RightFrontMotor.CurrentAngle;
+        joint_states.position[3] = RightRearMotor.CurrentAngle;
 
-		joint_states.velocity[0] = LeftFrontMotor.CurrentVelocity;
-		joint_states.velocity[1] = LeftRearMotor.CurrentVelocity;
-		joint_states.velocity[2] = RightFrontMotor.CurrentVelocity;
-		joint_states.velocity[3] = RightRearMotor.CurrentVelocity;
-        ret = rcutils_system_time_now(&current_time);
-        if(ret != RCUTILS_RET_OK)
+        joint_states.velocity[0] = LeftFrontMotor.CurrentVelocity;
+        joint_states.velocity[1] = LeftRearMotor.CurrentVelocity;
+        joint_states.velocity[2] = RightFrontMotor.CurrentVelocity;
+        joint_states.velocity[3] = RightRearMotor.CurrentVelocity;
+
+        current_time_nanos = rmw_uros_epoch_nanos();
+        msg_joint_state.header.stamp.sec = current_time_nanos/1000000000;
+        msg_joint_state.header.stamp.nanosec = current_time_nanos%1000000000;
+        osSemaphoreWait(MicroROSSemaphoreHandle,0XFFFFFFFF);
+        ret = rcl_publish(&pub_joint_states, &msg_joint_state, NULL);
+        osSemaphoreRelease(MicroROSSemaphoreHandle);
+        if(ret == RCL_RET_ERROR)
         {
-        	printf("[ERROR]read systime failed!\r\n");
-        }
-
-		msg_joint_state.header.stamp.sec = RCUTILS_NS_TO_S(current_time);
-        msg_joint_state.header.stamp.nanosec = (uint32_t)(current_time - msg_joint_state.header.stamp.sec*1000000000LL);
-		osSemaphoreWait(MicroROSSemaphoreHandle,0XFFFFFFFF);
-		ret = rcl_publish(&pub_joint_states, &msg_joint_state, NULL);
-		osSemaphoreRelease(MicroROSSemaphoreHandle);
-		if(ret == RCL_RET_ERROR)
-		{
             printf("[ERROR]publish /joint_states failed:publish error.\r\n");
-		}
-		else if(ret == RCL_RET_INVALID_ARGUMENT)
-		{
+        }
+        else if(ret == RCL_RET_INVALID_ARGUMENT)
+        {
             printf("[ERROR]publish /joint_states failed:invalid argument.\r\n");
-		}
-		else if(ret == RCL_RET_PUBLISHER_INVALID)
-		{
+        }
+        else if(ret == RCL_RET_PUBLISHER_INVALID)
+        {
             printf("[ERROR]publish /joint_states failed:publisher invalid.\r\n");
-		}
-	}
+        }
+    }
 
   /* USER CODE END PublishJointStates */
 }
@@ -522,25 +518,20 @@ void MotorAdjustcb(void const * argument)
 
     if(ReleaseTime == 0)
     {
-//        Car.TargetXVelocity = 0;
-//        Car.TargetYVelocity = 0;
-//        Car.TargetAngularVelocity = 0;
-    	DCMotor_SetVelocity(&LeftFrontMotor, 0);
-    	DCMotor_SetVelocity(&LeftRearMotor, 0);
-    	DCMotor_SetVelocity(&RightFrontMotor, 0);
-    	DCMotor_SetVelocity(&RightRearMotor, 0);
+        DCMotor_SetVelocity(&LeftFrontMotor, 0);
+        DCMotor_SetVelocity(&LeftRearMotor, 0);
+        DCMotor_SetVelocity(&RightFrontMotor, 0);
+        DCMotor_SetVelocity(&RightRearMotor, 0);
     }
     else
     {
         ReleaseTime -= ENCODER_UPDATE_INTERVAL;
     }
 
-//    Car_AdjustedVelocity(&Car);
-
-	DCMotor_AdjustVelocity(&LeftFrontMotor );
-	DCMotor_AdjustVelocity(&LeftRearMotor  );
-	DCMotor_AdjustVelocity(&RightFrontMotor);
-	DCMotor_AdjustVelocity(&RightRearMotor );
+    DCMotor_AdjustVelocity(&LeftFrontMotor );
+    DCMotor_AdjustVelocity(&LeftRearMotor  );
+    DCMotor_AdjustVelocity(&RightFrontMotor);
+    DCMotor_AdjustVelocity(&RightRearMotor );
   /* USER CODE END MotorAdjustcb */
 }
 

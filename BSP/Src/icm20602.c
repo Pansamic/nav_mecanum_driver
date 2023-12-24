@@ -24,6 +24,7 @@ extern "C"{
 #include <cmsis_os.h>
 #include <i2c.h>
 #include "rcutils/time.h"
+#include "rmw_microros/time_sync.h"
 #include <icm20602.h>
 
 
@@ -252,8 +253,9 @@ void ICM20602_Update(void)
 void ICM20602_UpdateMessage ( sensor_msgs__msg__Imu* msg)
 {
     uint8_t Buffer[14];
-    rcutils_time_point_value_t current_time;
-    rcutils_ret_t ret;
+    int64_t current_time_nanos = rmw_uros_epoch_nanos();
+    // rcutils_time_point_value_t current_time;
+    // rcutils_ret_t ret;
 
     ICM20602_Read(ICM20602_ACCEL_XOUT_H, Buffer, 14);
     ICM20602_dev.Accel_X_RAW = (Buffer[0]<<8) | Buffer[1];
@@ -264,13 +266,8 @@ void ICM20602_UpdateMessage ( sensor_msgs__msg__Imu* msg)
     ICM20602_dev.Gyro_Y_RAW = (Buffer[10]<<8) | Buffer[11];
     ICM20602_dev.Gyro_Z_RAW = (Buffer[12]<<8) | Buffer[13];
 
-    ret = rcutils_system_time_now(&current_time);
-    if(ret != RCUTILS_RET_OK)
-    	printf("[ERROR]read systime failed!\r\n");
-    msg->header.stamp.sec = RCUTILS_NS_TO_S(current_time);
-    msg->header.stamp.nanosec = (uint32_t)(current_time - msg->header.stamp.sec*1000000000LL + 300000000);
-//    msg->header.stamp.sec = rmw_uros_epoch_millis();
-//    msg->header.stamp.nanosec = rmw_uros_epoch_nanos();
+    msg->header.stamp.sec = current_time_nanos/1000000000LL;
+    msg->header.stamp.nanosec = current_time_nanos%1000000000LL;
     msg->linear_acceleration.y = ((float)ICM20602_dev.Accel_X_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_X_OFFSET)*ELLIPSOID_CALIBRATION_X_SCALE;
     msg->linear_acceleration.x = ((float)ICM20602_dev.Accel_Y_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_Y_OFFSET)*ELLIPSOID_CALIBRATION_Y_SCALE;
     msg->linear_acceleration.z = ((float)ICM20602_dev.Accel_Z_RAW * ICM20602_dev.AccelResolution * IMU_ONE_G - ELLIPSOID_CALIBRATION_Z_OFFSET)*ELLIPSOID_CALIBRATION_Z_SCALE;

@@ -146,7 +146,7 @@ void microros_init(void)
 //    ret |= microros_init_odom_publisher();
 //    ret |= microros_init_tf2_publisher();
     ret |= microros_init_joint_states_publisher();
-    ret |= microros_init_timeref_subscriber();
+    // ret |= microros_init_timeref_subscriber();
     ret |= microros_init_joint_jog_subscriber();
 //    ret |= microros_init_twist_subscriber();
 
@@ -463,7 +463,7 @@ uint8_t microros_init_joint_jog_subscriber(void)
 {
 	rcl_ret_t ret;
 	control_msgs__msg__JointJog__init(&msg_joint_jog);
-	ret = rclc_subscription_init_best_effort(&sub_joint_jog, &node,ROSIDL_GET_MSG_TYPE_SUPPORT(control_msgs,msg,JointJog), "cmd_mecanum");
+	ret = rclc_subscription_init_best_effort(&sub_joint_jog, &node,ROSIDL_GET_MSG_TYPE_SUPPORT(control_msgs,msg,JointJog), "joint_jog");
 	if (ret == RCL_RET_OK)
 	{
 		printf("[INFO] joint jog msg subscriber init OK!\r\n");
