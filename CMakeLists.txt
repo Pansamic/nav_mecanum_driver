@@ -48,11 +48,11 @@ file (GLOB PROJECT_SOURCES
 	Core/Src/*.c
 	Core/Startup/startup_stm32f407zgtx.s
 	Drivers/STM32F4xx_HAL_Driver/Src/*.c
-	micro_ros_stm32cubemx_utils/extra_sources/microros_transports/usb_cdc_transport.c
-	micro_ros_stm32cubemx_utils/extra_sources/*.c
 	Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
 	Middlewares/ST/STM32_USB_Device_Library/Core/Src/*.c
 	Middlewares/Third_Party/cRingbuf/cRingbuf.c
+	Middlewares/Third_Party/micro_ros_stm32cubemx_utils/extra_sources/microros_transports/usb_cdc_transport.c
+	Middlewares/Third_Party/micro_ros_stm32cubemx_utils/extra_sources/*.c
 	Middlewares/Third_Party/FreeRTOS/Source/*.c
 	Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c
 	Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c
@@ -76,10 +76,10 @@ set (PROJECT_INCLUDES
 	Drivers/CMSIS/DSP/Include
 	Drivers/CMSIS/Device/ST/STM32F4xx/Include
 	Drivers/STM32F4xx_HAL_Driver/Inc
-	micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include
 	Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc
 	Middlewares/ST/STM32_USB_Device_Library/Core/Inc
 	Middlewares/Third_Party/cRingbuf
+	Middlewares/Third_Party/micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include
 	Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS
 	Middlewares/Third_Party/FreeRTOS/Source/include
 	Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F
@@ -100,7 +100,7 @@ add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_SIZE}
 add_compile_definitions (${PROJECT_DEFINES})
 include_directories (${PROJECT_INCLUDES})
 target_link_libraries(${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS/Lib/GCC/libarm_cortexM4lf_math.a)
-target_link_libraries(${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/libmicroros.a)
+target_link_libraries(${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/Middlewares/Third_Party/micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/libmicroros.a)
 
 set (CMAKE_EXECUTABLE_SUFFIX ".elf")
 set (CMAKE_STATIC_LIBRARY_SUFFIX ".a")
