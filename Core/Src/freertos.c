@@ -65,7 +65,7 @@
 /* USER CODE BEGIN Variables */
 
 /* system control states */
-uint16_t ReleaseTime = 0; // unit:ms
+// uint16_t ReleaseTime = 0; // unit:ms
 // uint8_t u8TaskListBuff[32];
 
 /* USER CODE END Variables */
@@ -394,7 +394,7 @@ void PublishIMU(void const * argument)
         msg_imu.linear_acceleration.z = ICM20602_dev.Az;
         msg_imu.angular_velocity.x = ICM20602_dev.Gy;
         msg_imu.angular_velocity.y = ICM20602_dev.Gx;
-        msg_imu.angular_velocity.z = ICM20602_dev.Gz;
+        msg_imu.angular_velocity.z = -ICM20602_dev.Gz;
         osSemaphoreWait(UXRSemaphoreHandle,0XFFFFFFFF);
         if(publish_imu())
         {
@@ -522,25 +522,24 @@ void PublishJointStates(void const * argument)
 /* MotorAdjustcb function */
 void MotorAdjustcb(void const * argument)
 {
-  /* USER CODE BEGIN MotorAdjustcb */
-
-    if(ReleaseTime == 0)
-    {
-        DCMotor_SetVelocity(&LeftFrontMotor, 0);
-        DCMotor_SetVelocity(&LeftRearMotor, 0);
-        DCMotor_SetVelocity(&RightFrontMotor, 0);
-        DCMotor_SetVelocity(&RightRearMotor, 0);
-    }
-    else
-    {
-        ReleaseTime -= ENCODER_UPDATE_INTERVAL;
-    }
+    /* USER CODE BEGIN MotorAdjustcb */
+    // if(ReleaseTime == 0)
+    // {
+    //     DCMotor_SetVelocity(&LeftFrontMotor, 0);
+    //     DCMotor_SetVelocity(&LeftRearMotor, 0);
+    //     DCMotor_SetVelocity(&RightFrontMotor, 0);
+    //     DCMotor_SetVelocity(&RightRearMotor, 0);
+    // }
+    // else
+    // {
+    //     ReleaseTime -= ENCODER_UPDATE_INTERVAL;
+    // }
 
     DCMotor_AdjustVelocity(&LeftFrontMotor );
     DCMotor_AdjustVelocity(&LeftRearMotor  );
     DCMotor_AdjustVelocity(&RightFrontMotor);
     DCMotor_AdjustVelocity(&RightRearMotor );
-  /* USER CODE END MotorAdjustcb */
+    /* USER CODE END MotorAdjustcb */
 }
 
 /* Private application code --------------------------------------------------*/
@@ -556,14 +555,14 @@ void on_topic(
 {
     (void) session; (void) object_id; (void) request_id; (void) stream_id; (void) length;
     control_msgs_msg_JointJog_deserialize_topic(ub, &msg_joint_jog);
-	DCMotor_SetVelocity(&LeftFrontMotor, (float)msg_joint_jog.velocities[0]);
-	DCMotor_SetVelocity(&LeftRearMotor, (float)msg_joint_jog.velocities[1]);
-	DCMotor_SetVelocity(&RightFrontMotor, (float)msg_joint_jog.velocities[2]);
-	DCMotor_SetVelocity(&RightRearMotor, (float)msg_joint_jog.velocities[3]);
-	printf("[INFO] recv vel: 1:%.2f | 2:%.2f | 3:%.2f | 4:%.2f\r\n",
-			LeftFrontMotor.TargetVelocity,
-			LeftRearMotor.TargetVelocity,
-			RightFrontMotor.TargetVelocity,
-			RightRearMotor.TargetVelocity);
+    DCMotor_SetVelocity(&LeftFrontMotor, (float)msg_joint_jog.velocities[0]);
+    DCMotor_SetVelocity(&LeftRearMotor, (float)msg_joint_jog.velocities[1]);
+    DCMotor_SetVelocity(&RightFrontMotor, (float)msg_joint_jog.velocities[2]);
+    DCMotor_SetVelocity(&RightRearMotor, (float)msg_joint_jog.velocities[3]);
+    printf("[INFO] recv vel: 1:%.2f | 2:%.2f | 3:%.2f | 4:%.2f\r\n",
+            LeftFrontMotor.TargetVelocity,
+            LeftRearMotor.TargetVelocity,
+            RightFrontMotor.TargetVelocity,
+            RightRearMotor.TargetVelocity);
 }
 /* USER CODE END Application */
