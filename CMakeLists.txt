@@ -55,6 +55,7 @@ set (PROJECT_DEFINES
 	# LIST COMPILER DEFINITIONS HERE
 	STM32F407xx
 	USE_HAL_DRIVER
+	ARM_MATH_CM4
 	__rtems__
     )
 
@@ -141,6 +142,10 @@ target_link_libraries(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME} PUBLIC
 	${CMAKE_BINARY_DIR}/install/include
 )
+
+set(CMSISCORE ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS/Core)
+add_subdirectory(Drivers/CMSIS/DSP)
+target_link_libraries(${PROJECT_NAME} CMSISDSP)
 
 add_compile_definitions(${PROJECT_DEFINES})
 include_directories(${PROJECT_INCLUDES})
